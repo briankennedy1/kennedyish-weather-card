@@ -271,6 +271,7 @@ export function mergeForecasts(forecasts, { hourly = false, timeZone, rows = 5 }
         key,
         datetime: items[0].datetime,
         condition: mostCommon(items.map((item) => item.condition)),
+        is_daytime: items[0].is_daytime,
         temperature: highs.length ? Math.max(...highs) : null,
         templow: lows.length ? Math.min(...lows) : null,
         precipitation_probability: chances.length ? Math.max(...chances) : null,
@@ -2140,6 +2141,16 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .filter((row) => row.high !== null && row.low !== null);
     if (!rows.length) return '<div class="footer-note">No forecast available.</div>';
 
+    // Hourly icons follow the sun: the provider's is_daytime, else sunrise and sunset at the card's location.
+    const location = hourly ? this._location() : null;
+    const isNight = (row) => {
+      if (!hourly) return false;
+      if (typeof row.is_daytime === "boolean") return !row.is_daytime;
+      const { sunrise, sunset } = location ? getSolarTimes(row.datetime, location.latitude, location.longitude) : {};
+      if (sunrise && sunset) return row.datetime < sunrise || row.datetime > sunset;
+      return row.condition === "clear-night";
+    };
+
     const nowKey = periodKey(now, timeZone, hourly);
     const currentRounded = current === null ? null : Math.round(current);
     for (const row of rows) {
@@ -2189,7 +2200,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         return `
           <div class="row${row.isNow ? " now" : ""}" role="listitem" aria-label="${escapeHtml(`${label(row)}: ${conditionLabel}, low ${formatNumber(row.lowShown)}, high ${formatNumber(row.highShown)}${rainText ? `, ${rainText}` : ""}`)}">
             <span class="day">${escapeHtml(label(row))}</span>
-            <span class="ficon" title="${escapeHtml(conditionLabel)}">${weatherIllustration(row.condition)}</span>
+            <span class="ficon" title="${escapeHtml(conditionLabel)}">${weatherIllustration(row.condition, { night: isNight(row) })}</span>
             <span class="rain">${showRain
               ? `${chance !== null ? `<span class="rain-chance">${Math.round(chance)}%</span>` : ""}${amountText ? `<span class="rain-amount">${escapeHtml(amountText)}</span>` : ""}`
               : ""}</span>

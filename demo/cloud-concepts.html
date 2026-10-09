@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cloud Studies</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Jost:wght@500;600;700&family=Libre+Caslon+Text:ital@0;1&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --paper: #efe6d3;
+        --ink: #173634;
+        --ink-soft: rgba(23, 54, 52, .62);
+        --teal: #123f3c;
+        --cream: #fbf3e2;
+        --coral: #ef7656;
+        --mustard: #f2b53c;
+        --turquoise: #8ed6c8;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Libre Caslon Text", Georgia, serif;
+        background-color: var(--paper);
+        /* A faint paper grain. */
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .25 0 0 0 0 .18 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      header { max-width: 1060px; margin: 0 auto; padding: 56px 24px 8px; }
+      .kicker { font-family: Futura, Jost, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: .32em; text-transform: uppercase; color: var(--coral); }
+      h1 {
+        margin: 10px 0 12px;
+        font-family: Futura, Jost, sans-serif;
+        font-size: clamp(44px, 8vw, 88px);
+        font-weight: 700;
+        letter-spacing: -.04em;
+        line-height: .88;
+      }
+      h1 em { font-family: "Libre Caslon Text", Georgia, serif; font-weight: 400; letter-spacing: -.02em; color: var(--coral); }
+      .lede { max-width: 560px; margin: 0; font-size: 16px; font-style: italic; line-height: 1.55; color: var(--ink-soft); }
+
+      .controls {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 14px 22px;
+        margin-top: 28px;
+        padding: 14px 16px;
+        background: rgba(239, 230, 211, .92);
+        backdrop-filter: blur(6px);
+        border-bottom: 1px solid rgba(23, 54, 52, .12);
+      }
+      .group { display: flex; align-items: center; gap: 10px; }
+      .group-label { font-family: Futura, Jost, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: var(--ink-soft); }
+      .pills { display: flex; padding: 3px; border-radius: 999px; background: rgba(23, 54, 52, .08); }
+      .pills button {
+        padding: 7px 14px;
+        border: none;
+        border-radius: 999px;
+        font-family: Futura, Jost, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: var(--ink);
+        background: none;
+        cursor: pointer;
+      }
+      .pills button[aria-pressed="true"] { color: var(--cream); background: var(--teal); }
+
+      main { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 470px), 1fr)); gap: 56px 44px; max-width: 1060px; margin: 0 auto; padding: 44px 24px 96px; }
+      figure { margin: 0; }
+      .caption { display: grid; grid-template-columns: auto 1fr; gap: 0 16px; align-items: baseline; margin-bottom: 16px; }
+      .number {
+        grid-row: span 2;
+        font-family: Futura, Jost, sans-serif;
+        font-size: 64px;
+        font-weight: 700;
+        line-height: .8;
+        letter-spacing: -.05em;
+        color: transparent;
+        -webkit-text-stroke: 1.5px var(--mustard);
+      }
+      .name { font-family: Futura, Jost, sans-serif; font-size: 20px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+      .blurb { margin: 4px 0 0; font-size: 14px; font-style: italic; line-height: 1.5; color: var(--ink-soft); }
+
+      /* The card, as it sits on the dashboard. */
+      .card {
+        width: min(100%, 435px);
+        overflow: hidden;
+        border-radius: 16px;
+        background: var(--teal);
+        box-shadow: 0 1px 2px rgba(60, 40, 20, .1), 0 14px 32px rgba(60, 40, 20, .18);
+        font-family: Futura, "Futura PT", Jost, sans-serif;
+      }
+      .sky { position: relative; height: 170px; overflow: hidden; }
+      .sky canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .sky canvas.blurred { filter: blur(2.6px) saturate(1.05); transform: scale(1.04); }
+      .now { position: absolute; z-index: 3; inset: 16px 20px auto; display: flex; justify-content: space-between; color: var(--cream); text-shadow: 0 1px 0 rgba(18, 40, 50, .45), 0 2px 10px rgba(18, 40, 50, .3); }
+      .figure { font-size: 40px; font-weight: 700; letter-spacing: -.045em; line-height: .9; }
+      .figure small { margin-left: 4px; font-size: 12px; letter-spacing: .04em; opacity: .85; }
+      .label { display: block; margin-top: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
+      .trim { height: 4px; margin-bottom: 2px; background: var(--coral); box-shadow: 0 2px 0 var(--mustard); }
+      .foot { display: grid; grid-template-columns: auto 30px auto auto 1fr auto; align-items: center; gap: 10px; padding: 12px 20px 14px; color: var(--cream); }
+      .foot .day { font-size: 10.5px; font-weight: 700; letter-spacing: .2em; }
+      .foot .chance { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; color: var(--turquoise); font-size: 10px; font-weight: 700; line-height: 1; }
+      .foot .chance small { font-size: 8.5px; opacity: .75; }
+      .foot .lo, .foot .hi { font-size: 14px; font-weight: 700; }
+      .foot .lo { opacity: .68; }
+      .foot .bar { height: 8px; border-radius: 999px; background: rgba(251, 243, 226, .12); }
+      .foot .bar span { display: block; width: 36%; height: 100%; margin-left: 8%; border-radius: 999px; background: linear-gradient(90deg, #a6d9b9, #cddc8e); }
+      .foot svg { width: 30px; height: 25px; }
+
+      footer { padding: 0 24px 64px; text-align: center; font-size: 13px; font-style: italic; color: var(--ink-soft); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="kicker">Kennedyish Weather · Current conditions</div>
+      <h1>Clouds, <em>five ways.</em></h1>
+      <p class="lede">The same Streamliner rain under five different skies. Only the clouds change: each treatment comes from a different corner of mid-century illustration. None of them drift.</p>
+    </header>
+
+    <div class="controls">
+      <div class="group">
+        <span class="group-label">Time</span>
+        <div class="pills" data-control="time">
+          <button type="button" data-value="day" aria-pressed="true">Day</button>
+          <button type="button" data-value="night">Night</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="group-label">Rain</span>
+        <div class="pills" data-control="intensity">
+          <button type="button" data-value="drizzle">Drizzle</button>
+          <button type="button" data-value="rain" aria-pressed="true">Rain</button>
+          <button type="button" data-value="pouring">Pouring</button>
+        </div>
+      </div>
+    </div>
+
+    <main id="studies"></main>
+    <footer>Staging only. Pick a favorite (or a mix) and it becomes the card's clouds. <a href="./rain-concepts.html">Rain studies →</a></footer>
+
+    <script>
+      const W = 435;
+      const H = 170;
+      const state = { time: "day", intensity: "rain" };
+
+      const PALETTES = {
+        day: {
+          top: "#6a8e9c", bottom: "#bfd3d3", far: "#94b4a9", near: "#7b9e92",
+          cloud: "#f3eee2", shade: "#a9bcc0", back: "#8fa9b1", mist: "#c3d2d2", mistShade: "#a9bec1", backShade: "#7892a0", rain: "251, 243, 226",
+          accent: "142, 214, 200", water: ["#5a808c", "#2f5460"], ink: "24, 50, 59",
+        },
+        night: {
+          top: "#1b2b39", bottom: "#344a5b", far: "#243b4c", near: "#1b2f3e",
+          cloud: "#b7c6d1", shade: "#7a90a1", back: "#2f4556", mist: "#43596a", mistShade: "#364b5c", backShade: "#24384a", rain: "205, 232, 236",
+          accent: "159, 216, 207", water: ["#1a2b38", "#0c1720"], ink: "8, 18, 26",
+        },
+      };
+      const INTENSITY = {
+        drizzle: { density: 0.35, speed: 0.72, size: 0.72 },
+        rain: { density: 1, speed: 1, size: 1 },
+        pouring: { density: 2.3, speed: 1.35, size: 1.18 },
+      };
+      const LABELS = { drizzle: "Drizzle", rain: "Rainy", pouring: "Pouring" };
+
+      // ── Shared drawing ──────────────────────────────────────────────────
+      const HILL_FAR = new Path2D("M0 22 C50 8 110 2 170 14 C220 24 270 4 330 6 C360 7 385 12 400 16 V40 H0 Z");
+      const HILL_NEAR = new Path2D("M0 30 C40 22 90 20 140 28 C190 36 250 18 310 22 C350 25 380 30 400 28 V40 H0 Z");
+      const rand = (min, max) => min + Math.random() * (max - min);
+      const ground = (x) => H - 13 + 3.5 * Math.sin(x / 37) + 2 * Math.sin(x / 13);
+
+      function setup(canvas) {
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        const ctx = canvas.getContext("2d");
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return ctx;
+      }
+      function sky(ctx, p, bottom = H) {
+        const gradient = ctx.createLinearGradient(0, 0, 0, bottom);
+        gradient.addColorStop(0, p.top);
+        gradient.addColorStop(1, p.bottom);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, W, bottom);
+      }
+      function hills(ctx, p, top = H - 24, height = 24) {
+        ctx.save();
+        ctx.translate(0, top);
+        ctx.scale(W / 400, height / 40);
+        ctx.fillStyle = p.far;
+        ctx.fill(HILL_FAR);
+        ctx.fillStyle = p.near;
+        ctx.fill(HILL_NEAR);
+        ctx.restore();
+      }
+      // The card's cloud: a pill with three bumps, in two flat tones.
+      function cloudShape(ctx) {
+        ctx.beginPath();
+        ctx.roundRect(-28, -2, 56, 16, 8);
+        ctx.moveTo(-1, -2);
+        ctx.arc(-13, -2, 12, 0, Math.PI * 2);
+        ctx.moveTo(21, -8);
+        ctx.arc(5, -8, 16, 0, Math.PI * 2);
+        ctx.moveTo(30, 2);
+        ctx.arc(20, 2, 10, 0, Math.PI * 2);
+      }
+      function cloud(ctx, x, y, scale, body, shade) {
+        for (const [dx, color] of shade ? [[3, shade], [0, body]] : [[0, body]]) {
+          ctx.save();
+          ctx.translate(x + dx, y + dx);
+          ctx.scale(scale, scale);
+          cloudShape(ctx);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+      const wrap = (value, span) => ((value % span) + span) % span;
+
+      // ── Cloud shapes ───────────────────────────────────────────────────
+      // A small seeded random, so every cloud keeps its shape frame to frame.
+      function seeded(seed) {
+        let a = seed >>> 0;
+        return () => {
+          a = (a + 0x6d2b79f5) >>> 0;
+          let t = a;
+          t = Math.imul(t ^ (t >>> 15), t | 1);
+          t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      // Where the clouds sit: clear of the temperature and clock, above the hills.
+      // x, y: middle of the flat underside; w: width; h: how tall the bumps rise.
+      const LAYOUT = [
+        { x: 96, y: 98, w: 150, h: 26, seed: 3, front: false },
+        { x: 178, y: 72, w: 48, h: 17, seed: 11, front: false },
+        { x: 262, y: 106, w: 100, h: 54, seed: 7, front: true },
+        { x: 374, y: 88, w: 60, h: 24, seed: 5, front: true },
+      ];
+
+      // A cumulus silhouette, built only from circles: seeded bumps along the top,
+      // tallest in the middle, over a belly of circles whose bottoms are cut flat.
+      function cumulus({ w, h, seed }) {
+        const random = seeded(seed);
+        const count = Math.max(2, Math.round(w / 24) + 1);
+        const bumps = [];
+        for (let i = 0; i < count; i += 1) {
+          const along = (i + 0.5) / count;
+          const r = (w / count) * 0.7 * (0.85 + random() * 0.45);
+          const rise = h * (0.3 + 0.7 * Math.sin(Math.PI * along)) * (0.82 + random() * 0.36) + r * 0.6;
+          bumps.push([-w / 2 + w * along, -rise + r, r]);
+        }
+        const bellyRadius = Math.max(9, w * 0.11);
+        const circles = [...bumps];
+        for (let x = -w / 2 + bellyRadius; x <= w / 2 - bellyRadius + 0.01; x += bellyRadius * 1.2) circles.push([x, 0, bellyRadius]);
+        const parts = circles.map(([x, y, r]) => {
+          const circle = new Path2D();
+          circle.moveTo(x + r, y);
+          circle.arc(x, y, r, 0, Math.PI * 2, false);
+          return circle;
+        });
+        // A solid core through every bump's center, so neighboring bumps can never part.
+        const core = new Path2D();
+        core.moveTo(-w / 2 + bellyRadius, 0);
+        for (const [x, y] of bumps) core.lineTo(x, y);
+        core.lineTo(w / 2 - bellyRadius, 0);
+        core.closePath();
+        parts.push(core);
+        const outline = new Path2D();
+        for (const part of parts) outline.addPath(part);
+        // Everything above the flat underside.
+        const flat = new Path2D();
+        flat.rect(-w, -400, w * 2, 400);
+        return { parts, outline, bumps, flat, top: Math.min(...bumps.map(([, y, r]) => y - r)) };
+      }
+      function pill(x, y, width, height) {
+        const r = height / 2;
+        const path = new Path2D();
+        path.moveTo(x + r, y);
+        path.lineTo(x + width - r, y);
+        path.arc(x + width - r, y + r, r, -Math.PI / 2, Math.PI / 2, false);
+        path.lineTo(x + r, y + height);
+        path.arc(x + r, y + r, r, Math.PI / 2, Math.PI * 1.5, false);
+        path.closePath();
+        return path;
+      }
+      function fillParts(ctx, shape, color) {
+        ctx.fillStyle = color;
+        for (const part of shape.parts) ctx.fill(part);
+      }
+
+      const TONES = {
+        day: {
+          paper: ["#8ea6ae", "#b8cacb", "#eeeadf"], mistPaper: ["#93abb2", "#a9bec1", "#c7d5d5"],
+          ceiling: ["#4c6b78", "#5c7c88", "#6f8f99", "#89a6ad"],
+          body: "#f1ede2", mist: "#c3d2d2", under: "#a7bcc0", mistUnder: "#aabfc2",
+          line: "#2f7f86", dot: "#6f8f9a", shadow: "rgba(24, 50, 59, .28)", light: "rgba(255, 255, 255, .7)",
+        },
+        night: {
+          paper: ["#233545", "#344a5c", "#8a9daa"], mistPaper: ["#22364a", "#2c4255", "#3d5366"],
+          ceiling: ["#0e1822", "#14212d", "#1a2a38", "#233748"],
+          body: "#b9c8d2", mist: "#43596a", under: "#7a90a1", mistUnder: "#364b5c",
+          line: "#9fd8cf", dot: "#5d7385", shadow: "rgba(0, 0, 0, .4)", light: "rgba(230, 240, 245, .45)",
+        },
+      };
+
+      // ── The five cloud treatments ──────────────────────────────────────
+      const CutPaper = {
+        name: "Cut Paper",
+        blurb: "Mary Blair's paper cut-outs. Each cloud is three stacked sheets in rising tones, each casting a small shadow on the one below.",
+        draw(ctx, p, tone, front) {
+          for (const spec of LAYOUT.filter((cloud) => cloud.front === front)) {
+            const tones = front ? tone.paper : tone.mistPaper;
+            for (let k = 0; k < 3; k += 1) {
+              const layer = cumulus({ w: spec.w * (1 - 0.15 * k), h: spec.h * (1 - 0.12 * k), seed: spec.seed + k * 17 });
+              ctx.save();
+              ctx.translate(spec.x + k * 3, spec.y - k * 5);
+              ctx.clip(layer.flat);
+              ctx.shadowColor = tone.shadow;
+              ctx.shadowBlur = 3;
+              ctx.shadowOffsetY = 1.5;
+              ctx.fillStyle = tones[k];
+              ctx.fill(layer.outline, "nonzero");
+              ctx.restore();
+            }
+          }
+        },
+      };
+
+      const NimbusCeiling = {
+        name: "Nimbus Ceiling",
+        blurb: "Rain falls from an overcast, not a puff. A heavy scalloped ceiling hangs across the top, with rain pouring from its lumpy underside.",
+        rainTop: 48,
+        over: true,
+        shafts: [[60, 70, 80], [190, 74, 100], [330, 70, 90]],
+        draw(ctx, p, tone) {
+          const [deep, dark, mid, light] = tone.ceiling;
+          ctx.fillStyle = deep;
+          ctx.fillRect(0, 0, W, 34);
+          // Two rows of heavy, irregular lobes, the darker hanging lower at the back.
+          [[dark, 56, 20, 4], [mid, 47, 16, 9]].forEach(([color, y, size, seed]) => {
+            const random = seeded(seed * 31);
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.rect(0, 0, W, y - size * 0.6);
+            for (let x = -size; x < W + size; ) {
+              const radius = size * (0.55 + random() * 0.9);
+              const dip = size * (random() * 0.5 - 0.1);
+              ctx.moveTo(x + radius, y - size * 0.6 + dip);
+              ctx.arc(x, y - size * 0.6 + dip, radius, 0, Math.PI * 2);
+              x += radius * (1.1 + random() * 0.6);
+            }
+            ctx.fill();
+          });
+          // A lighter top that fades into the ceiling, and a soft glow under the lobes.
+          const glow = ctx.createLinearGradient(0, 30, 0, 70);
+          glow.addColorStop(0, "rgba(255, 255, 255, 0)");
+          glow.addColorStop(1, tone.light);
+          ctx.fillStyle = glow;
+          ctx.globalAlpha = 0.08;
+          ctx.fillRect(0, 30, W, 40);
+          ctx.globalAlpha = 1;
+        },
+      };
+
+      // A biomorphic 1950s cloud: a big lobe, a smaller one, and a tapering tail.
+      function amoeba(ctx, w, h) {
+        ctx.beginPath();
+        ctx.moveTo(-w / 2, 0);
+        ctx.bezierCurveTo(-w * 0.5, -h * 0.55, -w * 0.28, -h * 1.1, -w * 0.02, -h * 0.82);
+        ctx.bezierCurveTo(w * 0.12, -h * 1.02, w * 0.34, -h * 0.82, w * 0.36, -h * 0.4);
+        ctx.bezierCurveTo(w * 0.4, -h * 0.14, w * 0.48, -h * 0.06, w / 2 + 8, 0);
+        ctx.bezierCurveTo(w * 0.2, h * 0.1, -w * 0.25, h * 0.04, -w / 2, 0);
+        ctx.closePath();
+      }
+      const Boomerang = {
+        name: "Boomerang",
+        blurb: "Atomic-age abstraction. Lopsided amoeba clouds with tapering tails, in flat color, their turquoise outlines printed a little out of register.",
+        draw(ctx, p, tone, front) {
+          for (const spec of LAYOUT.filter((cloud) => cloud.front === front)) {
+            ctx.save();
+            ctx.translate(spec.x, spec.y);
+            const w = spec.w * 1.02;
+            const h = (spec.h + spec.w * 0.14) * 0.9;
+            amoeba(ctx, w, h);
+            ctx.fillStyle = front ? tone.body : tone.mist;
+            ctx.fill();
+            // The outline, knocked a few points up and to the right.
+            ctx.translate(4, -3);
+            amoeba(ctx, w, h);
+            ctx.strokeStyle = tone.line;
+            ctx.lineWidth = front ? 2 : 1.5;
+            ctx.globalAlpha = front ? 0.9 : 0.55;
+            ctx.stroke();
+            // A few atomic-age dots trailing off the tail.
+            ctx.fillStyle = tone.line;
+            ctx.globalAlpha = front ? 0.8 : 0.45;
+            for (const [dx, r] of [[16, 1.8], [24, 1.3], [30, 0.9]]) {
+              ctx.beginPath();
+              ctx.arc(w / 2 + dx - 4, 3, r, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.restore();
+          }
+        },
+      };
+
+      const Halftone = {
+        name: "Halftone",
+        blurb: "A vintage comic-book print. Pale clouds shaded with Ben-Day dots that thicken toward their undersides.",
+        draw(ctx, p, tone, front) {
+          for (const spec of LAYOUT.filter((cloud) => cloud.front === front)) {
+            const shape = cumulus(spec);
+            ctx.save();
+            ctx.translate(spec.x, spec.y);
+            ctx.clip(shape.flat);
+            fillParts(ctx, shape, front ? tone.body : tone.mist);
+            ctx.clip(shape.outline);
+            ctx.fillStyle = front ? tone.dot : tone.mistUnder;
+            const top = shape.top;
+            const span = -top;
+            for (let y = top; y <= 2; y += 4) {
+              const k = Math.max(0, (y - (top + span * 0.35)) / (span * 0.65));
+              if (k <= 0) continue;
+              const r = 0.35 + k * 1.55;
+              for (let x = -spec.w / 2 - 4 + (Math.round(y / 4) % 2) * 2; x <= spec.w / 2 + 4; x += 4) {
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+            ctx.restore();
+          }
+        },
+      };
+
+      const GoldenBook = {
+        name: "Golden Book",
+        blurb: "Painted like a 1950s Little Golden Book. Soft edges, a gently shaded underbelly, and dry-brush highlights on the tops.",
+        draw(ctx, p, tone, front) {
+          for (const spec of LAYOUT.filter((cloud) => cloud.front === front)) {
+            const shape = cumulus(spec);
+            const body = front ? tone.body : tone.mist;
+            ctx.save();
+            ctx.translate(spec.x, spec.y);
+            ctx.clip(shape.flat);
+            // Soft edges: the body painted with a halo of its own color.
+            ctx.shadowColor = body;
+            ctx.shadowBlur = 7;
+            fillParts(ctx, shape, body);
+            ctx.shadowBlur = 0;
+            // The underbelly, shaded softly from the base up.
+            ctx.save();
+            ctx.clip(shape.outline);
+            const belly = ctx.createLinearGradient(0, shape.top * 0.4, 0, 2);
+            belly.addColorStop(0, "rgba(0, 0, 0, 0)");
+            belly.addColorStop(1, front ? tone.under : tone.mistUnder);
+            ctx.fillStyle = belly;
+            ctx.fillRect(-spec.w, shape.top, spec.w * 2, -shape.top + 4);
+            ctx.restore();
+            // Dry-brush highlights on the upper left of each bump.
+            ctx.strokeStyle = tone.light;
+            ctx.lineCap = "round";
+            const random = seeded(spec.seed * 7);
+            for (const [x, y, r] of shape.bumps) {
+              for (let stroke = 0; stroke < 3; stroke += 1) {
+                ctx.globalAlpha = front ? 0.35 + random() * 0.35 : 0.2;
+                ctx.lineWidth = 1 + random() * 1.4;
+                const radius = r * (0.62 + stroke * 0.12);
+                const start = Math.PI * (1.08 + random() * 0.12);
+                ctx.beginPath();
+                ctx.arc(x, y, radius, start, start + Math.PI * (0.22 + random() * 0.2));
+                ctx.stroke();
+              }
+            }
+            ctx.restore();
+          }
+        },
+      };
+
+      const TREATMENTS = [CutPaper, NimbusCeiling, Boomerang, Halftone, GoldenBook];
+
+      // ── Streamliner rain, shared by every treatment ────────────────────
+      class RainyScene {
+        constructor(treatment) {
+          this.treatment = treatment;
+          this.layers = [
+            { count: 50, length: 11, width: 0.8, alpha: 0.22, velocity: 360 },
+            { count: 32, length: 19, width: 1.25, alpha: 0.42, velocity: 520 },
+            { count: 20, length: 31, width: 2, alpha: 0.72, velocity: 740 },
+          ];
+          this.top = treatment.rainTop ?? -60;
+          this.drops = this.layers.map((layer) => Array.from({ length: Math.ceil(layer.count * 2.4) }, () => this.spawn(layer, true)));
+          this.splashes = [];
+          this.shafts = treatment.shafts ?? LAYOUT.map((cloud) => [cloud.x, cloud.y, cloud.w * 0.85]);
+        }
+        spawn(layer, anywhere) {
+          const top = Math.max(-60, this.top);
+          return { x: rand(-60, W + 20), y: anywhere ? rand(top, H) : rand(top - 50, top), length: layer.length * rand(0.8, 1.25) };
+        }
+        streaks(ctx, index, dt, p, I, slant) {
+          const layer = this.layers[index];
+          const active = Math.min(this.drops[index].length, Math.round(layer.count * I.density));
+          ctx.strokeStyle = `rgba(${p.rain}, ${layer.alpha})`;
+          ctx.lineWidth = layer.width * I.size;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          for (let k = 0; k < active; k += 1) {
+            const drop = this.drops[index][k];
+            const step = layer.velocity * I.speed * dt;
+            drop.y += step;
+            drop.x += step * slant;
+            if (drop.y > ground(drop.x) + 4) {
+              if (index === 2) this.splashes.push({ x: drop.x, y: ground(drop.x), age: 0 });
+              Object.assign(drop, this.spawn(layer, false));
+            }
+            ctx.moveTo(drop.x, drop.y);
+            ctx.lineTo(drop.x - drop.length * slant, drop.y - drop.length);
+          }
+          ctx.stroke();
+        }
+        frame(ctx, t, dt, { p, I, night }) {
+          const slant = 0.3;
+          const tone = TONES[night ? "night" : "day"];
+          sky(ctx, p);
+          this.shafts.forEach(([x, y, width], index) => {
+            const fall = H - y;
+            const shimmer = 0.07 + 0.035 * Math.sin(t * 0.9 + index * 1.7);
+            const shaft = ctx.createLinearGradient(0, y, 0, H);
+            shaft.addColorStop(0, `rgba(${p.rain}, ${shimmer * Math.min(1.7, I.density)})`);
+            shaft.addColorStop(1, `rgba(${p.rain}, 0)`);
+            ctx.fillStyle = shaft;
+            ctx.beginPath();
+            ctx.moveTo(x - width / 2, y - 2);
+            ctx.lineTo(x + width / 2, y - 2);
+            ctx.lineTo(x + width / 2 + fall * slant, H);
+            ctx.lineTo(x - width / 2 + fall * slant, H);
+            ctx.fill();
+          });
+          if (this.treatment.over) {
+            this.streaks(ctx, 0, dt, p, I, slant);
+            this.streaks(ctx, 1, dt, p, I, slant);
+            this.streaks(ctx, 2, dt, p, I, slant);
+            this.treatment.draw(ctx, p, tone);
+          } else {
+            this.treatment.draw(ctx, p, tone, false);
+            this.streaks(ctx, 0, dt, p, I, slant);
+            this.streaks(ctx, 1, dt, p, I, slant);
+            this.treatment.draw(ctx, p, tone, true);
+            this.streaks(ctx, 2, dt, p, I, slant);
+          }
+          hills(ctx, p);
+          ctx.strokeStyle = `rgba(${p.rain}, .9)`;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          this.splashes = this.splashes.filter((splash) => (splash.age += dt) < 0.24);
+          for (const splash of this.splashes) {
+            const k = splash.age / 0.24;
+            const lift = 2 + 5 * Math.sin(Math.PI * Math.min(1, k * 1.3));
+            for (const side of [-1, 1]) {
+              ctx.moveTo(splash.x + side * (1 + k * 2), splash.y - 1);
+              ctx.lineTo(splash.x + side * (2.5 + k * 3.5), splash.y - 1 - lift);
+            }
+          }
+          ctx.globalAlpha = 0.85;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      // ── The page ───────────────────────────────────────────────────────
+      const foot = `
+        <div class="trim"></div>
+        <div class="foot">
+          <span class="day">TODAY</span>
+          <svg viewBox="0 0 120 100" aria-hidden="true"><g fill="#fbf3e2"><rect x="-28" y="-2" width="56" height="16" rx="8" transform="translate(60 38) scale(1.3)"/><circle cx="43" cy="35" r="15.6"/><circle cx="66.5" cy="27.6" r="20.8"/><circle cx="86" cy="40.6" r="13"/></g><g stroke="#8ed6c8" stroke-width="4" stroke-linecap="round"><line x1="45" y1="64" x2="41" y2="77"/><line x1="61" y1="68" x2="57" y2="81"/><line x1="77" y1="64" x2="73" y2="77"/></g></svg>
+          <span class="chance">90%<small>0.3 in</small></span>
+          <span class="lo">52°</span>
+          <span class="bar"><span></span></span>
+          <span class="hi">60°</span>
+        </div>`;
+
+      const main = document.getElementById("studies");
+      const instances = TREATMENTS.map((study, index) => {
+        const figure = document.createElement("figure");
+        figure.innerHTML = `
+          <figcaption class="caption">
+            <span class="number">0${index + 1}</span>
+            <span class="name">${study.name}</span>
+            <p class="blurb">${study.blurb}</p>
+          </figcaption>
+          <div class="card">
+            <div class="sky">
+              <canvas class="back"></canvas>
+              <canvas class="front"></canvas>
+              <div class="now">
+                <div><div class="figure">57°<small>F</small></div><span class="label condition">Rainy</span></div>
+                <div class="figure">3:20<small>PM</small></div>
+              </div>
+            </div>
+            ${foot}
+          </div>`;
+        main.append(figure);
+        const scene = new RainyScene(study);
+        const back = figure.querySelector("canvas.back");
+        const front = figure.querySelector("canvas.front");
+        if (scene.twoCanvases) back.classList.add("blurred");
+        else back.remove();
+        return { study: scene, figure, backCtx: scene.twoCanvases ? setup(back) : null, ctx: setup(front), visible: true };
+      });
+
+      window.studies = instances; // for poking at in the console
+      // ?study=3 shows just that one, for a closer look.
+      const only = Number(new URLSearchParams(location.search).get("study"));
+      if (only) instances.forEach((instance, index) => { if (index + 1 !== only) instance.figure.remove(); });
+
+      // Only animate what's on screen.
+      const observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          const instance = instances.find((item) => item.figure === entry.target);
+          if (instance) instance.visible = entry.isIntersecting;
+        }
+      });
+      for (const instance of instances) observer.observe(instance.figure);
+
+      for (const pills of document.querySelectorAll(".pills")) {
+        pills.addEventListener("click", (event) => {
+          const button = event.target.closest("button");
+          if (!button) return;
+          state[pills.dataset.control] = button.dataset.value;
+          for (const other of pills.querySelectorAll("button")) other.setAttribute("aria-pressed", String(other === button));
+          for (const label of document.querySelectorAll(".condition")) label.textContent = LABELS[state.intensity];
+        });
+      }
+
+      let last = performance.now();
+      function tick(now) {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        const t = now / 1000;
+        const options = { p: PALETTES[state.time], I: INTENSITY[state.intensity], night: state.time === "night" };
+        for (const instance of instances) {
+          if (!instance.visible || !instance.figure.isConnected || instance.error) continue;
+          // One study failing shouldn't stop the others.
+          try {
+            if (instance.backCtx) instance.study.background(instance.backCtx, t, options);
+            instance.study.frame(instance.ctx, t, dt, options);
+          } catch (error) {
+            instance.error = String(error.stack || error);
+            console.error(instance.error);
+          }
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      window.tick = tick; // lets a hidden preview be stepped by hand
+    </script>
+  </body>
+</html>

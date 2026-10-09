@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Kennedyish Buttons</title>
+    <style>
+      body { margin: 0; padding: 32px; font-family: -apple-system, sans-serif; background: #fafafa; }
+      /* A 500px sections column: 12 columns, 56px rows, 8px gaps. */
+      .section { display: grid; grid-template-columns: repeat(12, 1fr); grid-auto-rows: 56px; gap: 8px; width: 500px; }
+      .section > * { grid-column: span 3; grid-row: span 2; }
+    </style>
+  </head>
+  <body>
+    <div class="section" id="section"></div>
+    <script type="module">
+      import "../kennedyish-button-card.js";
+
+      const states = {
+        "switch.bath_fan_plug": { state: "on", attributes: { friendly_name: "Bath Fan" } },
+        "timer.bath_fan_timer": { state: "active", attributes: { finishes_at: new Date(Date.now() + 24 * 60_000 + 13_000).toISOString() } },
+        "light.front_porch": { state: "on", attributes: { friendly_name: "Front Porch", rgb_color: [255, 183, 104] } },
+        "light.front_room_1": { state: "off", attributes: { friendly_name: "Front Room Bulb 1" } },
+        "light.front_room_2": { state: "off", attributes: { friendly_name: "Front Room Bulb 2" } },
+      };
+      const cards = [];
+      const hass = () => ({
+        states: { ...states },
+        callService: (domain, service, { entity_id }) => {
+          const old = states[entity_id];
+          states[entity_id] = { ...old, state: old.state === "on" ? "off" : "on", attributes: { rgb_color: [255, 183, 104], ...old.attributes } };
+          cards.forEach((card) => (card.hass = hass()));
+        },
+      });
+      for (const entity of Object.keys(states).filter((id) => !id.startsWith("timer."))) {
+        const card = document.createElement("kennedyish-button-card");
+        card.setConfig({ entity, ...(entity === "switch.bath_fan_plug" ? { timer: "timer.bath_fan_timer" } : {}) });
+        document.getElementById("section").append(card);
+        card.hass = hass();
+        cards.push(card);
+      }
+    </script>
+  </body>
+</html>

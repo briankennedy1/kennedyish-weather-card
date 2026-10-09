@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kennedyish Skies</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Jost:wght@500;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --paper: #f4ecdb;
+        --ink: #123f3c;
+        --coral: #ef7656;
+        --mustard: #f2b53c;
+        --muted: rgba(18, 63, 60, .62);
+        --rule: rgba(18, 63, 60, .16);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Futura, "Futura PT", Jost, "Avenir Next", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 1px 1px, rgba(18, 63, 60, .09) 1px, transparent 1.4px) 0 0 / 7px 7px,
+          var(--paper);
+      }
+      header { max-width: 1600px; margin: 0 auto; padding: 44px 24px 8px; }
+      .kicker { margin: 0 0 8px; color: var(--coral); font-size: 11px; font-weight: 700; letter-spacing: .28em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(34px, 6vw, 58px); font-weight: 700; letter-spacing: -.035em; line-height: .95; }
+      h1 span { color: var(--coral); }
+      .lede { max-width: 640px; margin: 14px 0 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
+      .controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-top: 22px; padding-top: 18px; border-top: 3px solid var(--coral); box-shadow: 0 3px 0 var(--mustard); }
+      .controls label { font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+      .seg { display: inline-flex; border-radius: 999px; background: rgba(18, 63, 60, .08); padding: 3px; }
+      .seg button {
+        border: 0; border-radius: 999px; padding: 7px 14px; background: none; color: var(--ink);
+        font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; cursor: pointer;
+      }
+      .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+      .controls a { margin-left: auto; color: var(--ink); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+      main { max-width: 1600px; margin: 0 auto; padding: 24px 24px 72px; }
+      .group { margin-top: 30px; }
+      .group h2 { display: flex; align-items: baseline; gap: 12px; margin: 0 0 14px; font-size: 12px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; }
+      .group h2::after { content: ""; flex: 1; border-top: 1px solid var(--rule); }
+      /* Cards at the dashboard's width, as they appear live. */
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, 500px); justify-content: start; gap: 30px 24px; }
+      figure { margin: 0; min-width: 0; }
+      figure .frame { border-radius: 16px; }
+      figcaption { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; font-size: 11px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+      figcaption small { color: var(--muted); font-size: 10px; letter-spacing: .12em; text-align: right; }
+      @media (max-width: 520px) { .controls a { margin-left: 0; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <p class="kicker">Kennedyish Weather · every condition</p>
+      <h1>Halftone <span>skies</span></h1>
+      <p class="lede">Every sky the card can paint, on the whole card exactly as it runs on the dashboard: same settings, same 500px width, forecast and all. Clouds hold still; the light, rain, snow, and wind move.</p>
+      <div class="controls">
+        <label>Time</label>
+        <div class="seg" data-control="time">
+          <button data-value="auto" aria-pressed="true">Each at its best</button>
+          <button data-value="day" aria-pressed="false">All day</button>
+          <button data-value="night" aria-pressed="false">All night</button>
+        </div>
+        <a href="./staging.html">Staging →</a>
+      </div>
+    </header>
+    <main></main>
+
+    <script type="module">
+      import "../kennedyish-weather-card.js";
+
+      const TZ = "America/Los_Angeles";
+      const at = (hour, minute = 0) => {
+        // Sep 23, 2026: an ordinary day, clear of the equinox celebration.
+        const date = new Date("2026-09-23T12:00:00Z");
+        const offset = new Date(date.toLocaleString("en-US", { timeZone: TZ })) - new Date(date.toLocaleString("en-US", { timeZone: "UTC" }));
+        date.setUTCHours(hour, minute, 0, 0);
+        return new Date(date.valueOf() - offset);
+      };
+      const DAY = at(13, 5);
+      const NIGHT = at(22, 30);
+
+      // [group, [condition, label, note, best time]]
+      const GROUPS = [
+        ["Clear", [
+          ["sunny", "Sunny", "Sunburst, glints, gulls", DAY],
+          ["sunny", "Golden hour", "Dusk tones", at(18, 50)],
+          ["sunny", "First light", "Dawn tones", at(7, 12)],
+          ["clear-night", "Clear night", "Stars, meteor, satellite", NIGHT],
+          ["breezy", "Breezy", "Station wind 12+ mph", DAY],
+          ["windy", "Windy", "Station wind 20+ mph", DAY],
+        ]],
+        ["Clouds", [
+          ["partlycloudy", "Partly cloudy", "", DAY],
+          ["partlycloudy", "Partly cloudy at dusk", "", at(18, 50)],
+          ["cloudy", "Cloudy", "Light passing over", DAY],
+          ["windy-variant", "Windy and cloudy", "", DAY],
+          ["fog", "Fog", "Drifting banks", at(8, 10)],
+        ]],
+        ["Rain", [
+          ["drizzle", "Drizzle", "Station rain under .03 in/h", DAY],
+          ["rainy", "Rainy", "", DAY],
+          ["pouring", "Pouring", "Station rain .3+ in/h", NIGHT],
+          ["lightning-rainy", "Thunderstorms", "", DAY],
+          ["lightning", "Lightning", "Dry storm", NIGHT],
+        ]],
+        ["Ice", [
+          ["snowy", "Snowy", "", DAY],
+          ["snowy-rainy", "Sleet", "", DAY],
+          ["hail", "Hail", "", DAY],
+        ]],
+        ["Air", [
+          ["smoky", "Smoky", "Station AQI 101+", DAY],
+          ["smoky", "Smoky night", "", NIGHT],
+          ["exceptional", "Exceptional", "", DAY],
+        ]],
+      ];
+
+      // The live forecast snapshot (Met.no, 2026-09-23); today's row takes the condition shown.
+      const WEEK = [["sunny", 56, 86], ["partlycloudy", 57, 83], ["partlycloudy", 62, 80], ["partlycloudy", 54, 70], ["sunny", 55, 71], ["sunny", 55, 74]];
+      const RAINY = ["drizzle", "rainy", "pouring", "lightning-rainy", "snowy-rainy", "hail"];
+      const TEMPS = { snowy: [24, 31], "snowy-rainy": [30, 36], hail: [41, 52] };
+      function forecast(condition, now) {
+        return WEEK.map(([other, low, high], day) => {
+          const [templow, temperature] = day === 0 ? TEMPS[condition] || [low, high] : [low, high];
+          return {
+            datetime: new Date(at(12).valueOf() + day * 86_400_000).toISOString(),
+            condition: day === 0 ? condition : other,
+            templow,
+            temperature,
+            precipitation: day === 0 && RAINY.includes(condition) ? (condition === "pouring" ? 0.8 : condition === "drizzle" ? 0.04 : 0.3) : 0,
+          };
+        });
+      }
+
+      function makeHass(condition, now) {
+        const temperature = TEMPS[condition]?.[1] - 2 || 64;
+        return {
+          states: {
+            "weather.forecast_home": {
+              entity_id: "weather.forecast_home",
+              state: condition,
+              attributes: { temperature, temperature_unit: "°F", precipitation_unit: "in", humidity: 60, supported_features: 3, friendly_name: "Forecast Home" },
+            },
+          },
+          config: { time_zone: TZ, unit_system: { temperature: "°F" }, latitude: 37.7749, longitude: -122.4194, country: "US" },
+          locale: { language: "en", time_format: "12" },
+          connection: {
+            subscribeMessage: async (callback) => {
+              setTimeout(() => callback({ type: "daily", forecast: forecast(condition, now) }));
+              return () => {};
+            },
+          },
+        };
+      }
+
+      const LABELS = { sunny: "Sunny", "clear-night": "Clear night" };
+      function render(mode) {
+        const main = document.querySelector("main");
+        main.replaceChildren();
+        for (const [name, items] of GROUPS) {
+          const section = document.createElement("section");
+          section.className = "group";
+          section.innerHTML = `<h2>${name}</h2><div class="grid"></div>`;
+          const grid = section.querySelector(".grid");
+          const seen = new Set();
+          for (const [condition, label, note, best] of items) {
+            // Sunny at night is just a clear night.
+            if (mode === "night" && condition === "sunny") continue;
+            const now = mode === "day" ? DAY : mode === "night" ? NIGHT : best;
+            // In all-day or all-night mode, the time-of-day variants collapse into one.
+            const key = `${condition}-${mode === "auto" ? label : ""}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const figure = document.createElement("figure");
+            const frame = document.createElement("div");
+            frame.className = "frame";
+            const card = document.createElement("kennedyish-weather-card");
+            card._now = () => now;
+            // No network: no alerts, and rain chances only where it's raining.
+            card._fetchAlerts = async () => [];
+            card._fetchRainChances = async () =>
+              RAINY.includes(condition) ? [{ start: at(0).toISOString(), end: new Date(at(0).valueOf() + 86_400_000).toISOString(), chance: condition === "drizzle" ? 40 : 80 }] : [];
+            // The live dashboard's config.
+            card.setConfig({ type: "custom:kennedyish-weather-card", entity: "weather.forecast_home" });
+            card.hass = makeHass(condition, now);
+            frame.append(card);
+            const time = now.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
+            const shown = mode === "auto" ? label : LABELS[condition] || label;
+            figure.append(frame);
+            figure.insertAdjacentHTML("beforeend", `<figcaption><span>${shown}</span><small>${mode === "auto" && note ? `${note} · ` : ""}${time}</small></figcaption>`);
+            grid.append(figure);
+          }
+          main.append(section);
+        }
+      }
+
+      const seg = document.querySelector('[data-control="time"]');
+      seg.addEventListener("click", (event) => {
+        const button = event.target.closest("button");
+        if (!button) return;
+        for (const other of seg.querySelectorAll("button")) other.setAttribute("aria-pressed", String(other === button));
+        render(button.dataset.value);
+      });
+      render("auto");
+    </script>
+  </body>
+</html>

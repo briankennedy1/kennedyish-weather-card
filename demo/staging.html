@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weather Card Staging</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 32px 16px 64px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #2f3432;
+        background: #fafafa;
+      }
+      main { display: flex; flex-wrap: wrap; gap: 40px; justify-content: center; align-items: flex-start; }
+      .stage { display: flex; flex-direction: column; gap: 10px; }
+      .stage-label { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; opacity: .55; }
+      kennedyish-weather-card { display: block; }
+      .controls {
+        display: grid;
+        gap: 18px;
+        width: min(100%, 340px);
+        padding: 20px;
+        border-radius: 16px;
+        background: #eef0ec;
+      }
+      h1 { margin: 0; font-size: 15px; }
+      p { margin: 0; font-size: 13px; line-height: 1.45; opacity: .75; }
+      label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      input[type="range"] { width: 100%; }
+      select, input[type="number"] { padding: 6px 8px; border: 1px solid #c9cec9; border-radius: 8px; font: inherit; font-weight: 400; background: #fff; }
+      button { padding: 6px 12px; border: 1px solid #c9cec9; border-radius: 999px; font: inherit; font-size: 12px; background: #fff; cursor: pointer; }
+      button[aria-pressed="true"] { border-color: #123f3c; color: #fbf3e2; background: #123f3c; }
+      .buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+      .status { font-size: 11px; opacity: .55; }
+      fieldset { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; padding: 12px; border: 1px solid #d5dad5; border-radius: 12px; }
+      fieldset .status { grid-column: 1 / -1; }
+      fieldset input { width: 100%; }
+      legend { padding: 0 4px; font-size: 12px; font-weight: 600; }
+      a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="stage">
+        <span class="stage-label" id="stage-label">Dashboard width</span>
+        <div id="slot"></div>
+      </div>
+
+      <form class="controls" id="controls" onsubmit="return false">
+        <div>
+          <h1>Weather card staging</h1>
+          <p>Previews the local <code>kennedyish-weather-card.js</code>, not the live dashboard. The page reloads itself when the file changes.</p>
+        </div>
+
+        <label>
+          <span class="row"><span>Time of day</span><span id="time-readout"></span></span>
+          <input type="range" id="time" min="0" max="1435" step="5" />
+        </label>
+        <label>
+          <span class="row"><span>Date</span><button type="button" id="today">Today</button></span>
+          <input type="date" id="date" />
+        </label>
+        <div class="buttons" aria-label="First day of a season">
+          <span class="status">First day of</span>
+          <button type="button" data-season="0">Spring</button>
+          <button type="button" data-season="1">Summer</button>
+          <button type="button" data-season="2">Fall</button>
+          <button type="button" data-season="3">Winter</button>
+        </div>
+        <div class="buttons" aria-label="Time presets">
+          <button type="button" data-time="live" aria-pressed="false">Live clock</button>
+          <button type="button" data-time="415">Dawn</button>
+          <button type="button" data-time="600">Morning</button>
+          <button type="button" data-time="780">Midday</button>
+          <button type="button" data-time="1115">Golden hour</button>
+          <button type="button" data-time="1350">Night</button>
+        </div>
+
+        <label>
+          Met.no condition
+          <select id="condition"></select>
+        </label>
+
+        <fieldset>
+          <legend>Ambient station</legend>
+          <label>
+            Temperature °F
+            <input type="number" id="temp" step="0.1" />
+          </label>
+          <label>
+            Rain rate in/h
+            <input type="number" id="rain" step="0.01" min="0" />
+          </label>
+          <label>
+            Wind mph
+            <input type="number" id="wind" step="1" min="0" />
+          </label>
+          <label>
+            PM2.5 µg/m³
+            <input type="number" id="pm25" step="1" min="0" data-key="pm25" />
+          </label>
+          <span class="status" id="shown-condition"></span>
+        </fieldset>
+
+        <label>
+          NWS alert
+          <select id="alert">
+            <option value="none">None (as now)</option>
+            <option value="minor">Special Weather Statement (minor)</option>
+            <option value="heat">Heat Advisory (moderate)</option>
+            <option value="redflag">Red Flag Warning + Heat Advisory (severe)</option>
+            <option value="tornado">Tornado Warning (extreme)</option>
+          </select>
+        </label>
+
+        <div class="buttons" aria-label="Width">
+          <button type="button" data-width="500">Dashboard</button>
+          <button type="button" data-width="360">Phone</button>
+          <button type="button" data-width="600">Wide</button>
+        </div>
+
+        <fieldset>
+          <legend>Rain forecast</legend>
+          <label>
+            NWS chance today %
+            <input type="number" id="chance" step="5" min="0" max="100" data-key="chance" />
+          </label>
+          <label>
+            Met.no amount today in
+            <input type="number" id="amount" step="0.05" min="0" data-key="amount" />
+          </label>
+        </fieldset>
+
+        <button type="button" id="reset">Reset to live snapshot</button>
+        <span class="status" id="status"></span>
+        <a href="./index.html">All conditions and options →</a>
+        <a href="./skies.html">Every sky, day and night →</a>
+        <a href="./rain-concepts.html">Rain studies, five ways →</a>
+        <a href="./cloud-concepts.html">Cloud studies, five ways →</a>
+        <a href="./buttons.html">Kennedyish buttons →</a>
+      </form>
+    </main>
+
+    <script type="module">
+      import { getSeasonStarts } from "../kennedyish-weather-card.js";
+
+      const TZ = "America/Los_Angeles";
+      // Snapshot of weather.forecast_home (Met.no) on 2026-09-23, 7:18 AM.
+      const SNAPSHOT = {
+        condition: "partlycloudy",
+        temperature: 56,
+        humidity: 98,
+        forecast: [
+          ["sunny", 56, 86],
+          ["partlycloudy", 57, 83],
+          ["partlycloudy", 62, 80],
+          ["partlycloudy", 54, 70],
+          ["sunny", 55, 71],
+          ["sunny", 55, 74],
+        ],
+      };
+      // A home weather station at the same moment.
+      const STATION = { temperature: 57.7, humidity: 96, rain: 0, wind: 0, gust: 0, pm25: 6 };
+      const hoursFromNow = (hours) => new Date(Date.now() + hours * 3_600_000).toISOString();
+      const ALERTS = {
+        none: () => [],
+        minor: () => [{ event: "Special Weather Statement", severity: "Minor", ends: hoursFromNow(3), headline: "Special Weather Statement issued by NWS San Francisco CA", description: "Patchy dense fog will reduce visibility to under a quarter mile in places through mid morning." }],
+        heat: () => [{ event: "Heat Advisory", severity: "Moderate", ends: hoursFromNow(10), headline: "Heat Advisory issued by NWS San Francisco CA", description: "* WHAT...Temperatures up to 100 expected.\n\n* WHERE...Interior valleys.\n\n* WHEN...Until 8 PM PDT this evening.", instruction: "Drink plenty of fluids, stay in an air-conditioned room, stay out of the sun, and check up on relatives and neighbors." }],
+        redflag: () => [
+          { event: "Red Flag Warning", severity: "Severe", ends: hoursFromNow(30), headline: "Red Flag Warning issued by NWS San Francisco CA", description: "* WIND...North winds 15 to 25 mph with gusts up to 45 mph.\n\n* HUMIDITY...As low as 8 percent.", instruction: "A Red Flag Warning means that critical fire weather conditions are either occurring now, or will shortly." },
+          { event: "Heat Advisory", severity: "Moderate", ends: hoursFromNow(10), headline: "Heat Advisory issued by NWS San Francisco CA" },
+        ],
+        tornado: () => [{ event: "Tornado Warning", severity: "Extreme", ends: hoursFromNow(0.75), headline: "Tornado Warning issued by NWS San Francisco CA", description: "A severe thunderstorm capable of producing a tornado was located near downtown, moving northeast at 25 mph.", instruction: "TAKE COVER NOW! Move to a basement or an interior room on the lowest floor of a sturdy building." }],
+      };
+      const CONDITIONS = [
+        "sunny", "partlycloudy", "cloudy", "fog", "rainy", "pouring", "lightning", "lightning-rainy",
+        "snowy", "snowy-rainy", "hail", "windy", "windy-variant", "exceptional",
+      ];
+
+      // State lives in the URL hash so it survives the automatic reloads.
+      const defaults = {
+        time: "live", date: "", condition: SNAPSHOT.condition, temp: String(STATION.temperature), rain: String(STATION.rain),
+        wind: String(STATION.wind), pm25: String(STATION.pm25),
+        chance: "0", amount: "0", alert: "none", width: "500",
+      };
+      const state = { ...defaults, ...Object.fromEntries(new URLSearchParams(location.hash.slice(1))) };
+      const save = () => history.replaceState(null, "", `#${new URLSearchParams(state)}`);
+
+      // A wall-clock minute of today in San Francisco, as a Date.
+      function atMinute(minuteOfDay) {
+        const today = state.date || new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+        const probe = new Date(`${today}T12:00:00Z`);
+        const offset = new Date(probe.toLocaleString("en-US", { timeZone: TZ })) - new Date(probe.toLocaleString("en-US", { timeZone: "UTC" }));
+        return new Date(Date.parse(`${today}T00:00:00Z`) + minuteOfDay * 60_000 - offset);
+      }
+      const nowMinute = () => {
+        const parts = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date());
+        const get = (type) => Number(parts.find((part) => part.type === type).value);
+        return get("hour") * 60 + get("minute");
+      };
+      const currentDate = () => (state.time === "live" ? new Date() : atMinute(Number(state.time)));
+
+      function makeHass() {
+        const now = currentDate();
+        const forecast = buildForecast();
+        return makeHassWith(now, forecast);
+      }
+
+      function buildForecast() {
+        return SNAPSHOT.forecast.map(([condition, templow, temperature], day) => ({
+          datetime: new Date(atMinute(12 * 60).valueOf() + day * 86_400_000).toISOString(),
+          condition,
+          templow,
+          temperature,
+          // Met.no's expected amount: today's as chosen, tapering over the next days.
+          precipitation: Math.max(0, Number(state.amount) - day * 0.1),
+        }));
+      }
+
+      function makeHassWith(now, forecast) {
+        return {
+          states: {
+            "weather.forecast_home": {
+              entity_id: "weather.forecast_home",
+              state: state.condition,
+              attributes: { temperature: SNAPSHOT.temperature, temperature_unit: "°F", precipitation_unit: "in", humidity: SNAPSHOT.humidity, supported_features: 3, friendly_name: "Forecast Home" },
+              last_updated: now.toISOString(),
+            },
+            "sensor.my_station_temperature": { state: state.temp, attributes: { unit_of_measurement: "°F" } },
+            "sensor.my_station_humidity": { state: String(STATION.humidity), attributes: { unit_of_measurement: "%" } },
+            "sensor.my_station_precipitation_intensity": { state: state.rain, attributes: { unit_of_measurement: "in/h" } },
+            "sensor.my_station_wind_average_10_minutes": { state: state.wind, attributes: { unit_of_measurement: "mph" } },
+            "sensor.my_station_wind_gust": { state: String(Math.round(Number(state.wind) * 1.4)), attributes: { unit_of_measurement: "mph" } },
+            "sensor.my_station_pm2_5": { state: state.pm25, attributes: { unit_of_measurement: "µg/m³" } },
+          },
+          config: { time_zone: TZ, unit_system: { temperature: "°F" }, latitude: 37.7749, longitude: -122.4194, country: "US" },
+          locale: { language: "en", time_format: "12" },
+          connection: {
+            subscribeMessage: async (callback) => {
+              setTimeout(() => callback({ type: "daily", forecast }));
+              return () => {};
+            },
+          },
+        };
+      }
+
+      // The card config to push live: Met.no for the forecast, the station for current readings.
+      const CONFIG = {
+        type: "custom:kennedyish-weather-card",
+        entity: "weather.forecast_home",
+        temperature_sensor: "sensor.my_station_temperature",
+        humidity_sensor: "sensor.my_station_humidity",
+        rain_rate_sensor: "sensor.my_station_precipitation_intensity",
+        wind_speed_sensor: "sensor.my_station_wind_average_10_minutes",
+        wind_gust_sensor: "sensor.my_station_wind_gust",
+        pm25_sensor: "sensor.my_station_pm2_5",
+      };
+      const card = document.createElement("kennedyish-weather-card");
+      card._now = currentDate;
+      card._fetchAlerts = async () => ALERTS[state.alert]();
+      // NWS 12-hour periods: today and tonight take the chosen chance, later days taper off.
+      card._fetchRainChances = async () =>
+        [0, 1, 2, 3].map((day) => ({
+          start: new Date(atMinute(6 * 60).valueOf() + day * 86_400_000).toISOString(),
+          end: new Date(atMinute(30 * 60).valueOf() + day * 86_400_000).toISOString(),
+          chance: Math.max(0, Number(state.chance) - day * 20),
+        }));
+      card.setConfig(CONFIG);
+      document.getElementById("slot").append(card);
+
+      const timeInput = document.getElementById("time");
+      const conditionInput = document.getElementById("condition");
+      const tempInput = document.getElementById("temp");
+      const rainInput = document.getElementById("rain");
+      const windInput = document.getElementById("wind");
+      const alertInput = document.getElementById("alert");
+      conditionInput.innerHTML = CONDITIONS.map((c) => `<option value="${c}">${c}${c === SNAPSHOT.condition ? " (live snapshot)" : ""}</option>`).join("");
+
+      function update() {
+        save();
+        const minute = state.time === "live" ? nowMinute() : Number(state.time);
+        timeInput.value = String(minute);
+        document.getElementById("date").value = state.date || new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+        document.getElementById("time-readout").textContent =
+          (state.time === "live" ? "Live · " : "") + currentDate().toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
+        conditionInput.value = state.condition;
+        tempInput.value = state.temp;
+        rainInput.value = state.rain;
+        windInput.value = state.wind;
+        for (const input of document.querySelectorAll("[data-key]")) input.value = state[input.dataset.key];
+        alertInput.value = state.alert;
+        card.style.width = `${state.width}px`;
+        document.getElementById("stage-label").textContent = { 500: "Dashboard width", 360: "Phone width", 600: "Wide" }[state.width] || `${state.width}px`;
+        for (const button of document.querySelectorAll("[data-time]")) button.setAttribute("aria-pressed", String(button.dataset.time === state.time));
+        for (const button of document.querySelectorAll("[data-width]")) button.setAttribute("aria-pressed", String(button.dataset.width === state.width));
+        card.hass = makeHass();
+        card._forecast = buildForecast();
+        card._render();
+        const shown = card.shadowRoot.querySelector(".sky")?.className.match(/sky-(\w+)/)?.[1];
+        const art = card.shadowRoot.querySelector(".sky-weather")?.getAttribute("class").match(/wx-([\w-]+)/)?.[1];
+        document.getElementById("shown-condition").textContent = `Card shows: ${art || state.condition}${art && art !== state.condition ? " (corrected by the station)" : ""}`;
+      }
+
+      timeInput.addEventListener("input", () => { state.time = timeInput.value; update(); });
+      document.getElementById("date").addEventListener("input", (event) => {
+        state.date = event.target.value;
+        if (state.time === "live") state.time = String(nowMinute());
+        update();
+      });
+      document.getElementById("today").addEventListener("click", () => { state.date = ""; update(); });
+      // Jump to an equinox or solstice this year (the year shown), at midday, to see its celebration.
+      for (const button of document.querySelectorAll("[data-season]")) {
+        button.addEventListener("click", () => {
+          const shown = state.date || new Date().toLocaleDateString("en-CA", { timeZone: TZ });
+          const start = getSeasonStarts(Number(shown.slice(0, 4)))[Number(button.dataset.season)];
+          state.date = start.toLocaleDateString("en-CA", { timeZone: TZ });
+          state.time = "780";
+          update();
+        });
+      }
+      conditionInput.addEventListener("change", () => { state.condition = conditionInput.value; update(); });
+      tempInput.addEventListener("input", () => { state.temp = tempInput.value || defaults.temp; update(); });
+      rainInput.addEventListener("input", () => { state.rain = rainInput.value || "0"; update(); });
+      windInput.addEventListener("input", () => { state.wind = windInput.value || "0"; update(); });
+      for (const input of document.querySelectorAll("[data-key]")) {
+        input.addEventListener("input", async () => {
+          state[input.dataset.key] = input.value || "0";
+          update();
+          if (input.dataset.key === "chance") await card._refreshRainChances(true);
+        });
+      }
+      document.getElementById("reset").addEventListener("click", async () => {
+        Object.assign(state, defaults, { width: state.width });
+        card._alertsOpen = false;
+        update();
+        await Promise.all([card._refreshAlerts(true), card._refreshRainChances(true)]);
+      });
+      alertInput.addEventListener("change", async () => { state.alert = alertInput.value; card._alertsOpen = false; update(); await card._refreshAlerts(true); });
+      for (const button of document.querySelectorAll("[data-time]")) button.addEventListener("click", () => { state.time = button.dataset.time; update(); });
+      for (const button of document.querySelectorAll("[data-width]")) button.addEventListener("click", () => { state.width = button.dataset.width; update(); });
+      setInterval(() => state.time === "live" && update(), 30_000);
+      update();
+
+      // Reload when the card file changes on disk.
+      const status = document.getElementById("status");
+      let known = null;
+      async function watch() {
+        try {
+          const text = await (await fetch("../kennedyish-weather-card.js", { cache: "no-store" })).text();
+          if (known !== null && text !== known) location.reload();
+          known = text;
+          const version = text.match(/CARD_VERSION = "([^"]+)"/)?.[1];
+          status.textContent = `Local card v${version} · watching for changes`;
+        } catch {
+          status.textContent = "Preview server not reachable";
+        }
+      }
+      watch();
+      setInterval(watch, 1500);
+    </script>
+  </body>
+</html>

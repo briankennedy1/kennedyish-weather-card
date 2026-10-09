@@ -1,0 +1,20 @@
+{
+  "name": "kennedyish-weather-card",
+  "version": "4.0.0",
+  "description": "A mid-century weather card for Home Assistant: halftone skies, forecast, alerts, sunrise and sunset, and the seasons of the year.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "serve": "node demo/serve.js",
+    "screenshots": "node demo/screenshots.js"
+  },
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "weather",
+    "forecast",
+    "sunrise",
+    "sunset"
+  ],
+  "license": "MIT"
+}

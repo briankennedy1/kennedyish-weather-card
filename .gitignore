@@ -1,0 +1,6 @@
+.DS_Store
+coverage/
+node_modules/
+demo-actual.png
+# Local backups of the live dashboard config
+.dashboard-home.backup-*.json

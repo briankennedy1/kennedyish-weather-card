@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.1.0";
+const CARD_VERSION = "4.1.1";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 
@@ -1416,7 +1416,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           type: "grid",
           name: "",
           schema: [
-            { name: "forecast_rows", selector: { number: { min: 1, max: 12, mode: "box" } } },
+            { name: "forecast_rows", selector: { number: { min: 1, mode: "box" } } },
             {
               name: "time_format",
               selector: {
@@ -1530,6 +1530,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           show_rain_chance: "From the National Weather Service forecast (US only); on by default",
           latitude: "Leave blank to use Home Assistant's home location",
           time_zone: "An IANA name like Europe/London; leave blank to use Home Assistant's",
+          forecast_rows: "As many as your weather entity forecasts",
         })[schema.name],
     };
   }

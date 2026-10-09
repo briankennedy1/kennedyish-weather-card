@@ -81,7 +81,7 @@ Or by hand:
 2. In Home Assistant, go to **Settings → Dashboards**, open the menu (⋮), and choose **Resources**. Add this URL as a **JavaScript module**:
 
    ```text
-   /local/kennedyish-weather-card.js?v=4.1.0
+   /local/kennedyish-weather-card.js?v=4.1.1
    ```
 
    Change the `?v=` number whenever you update the file, because Home Assistant caches files in `/local`.
@@ -151,7 +151,7 @@ The station takes over the current temperature. The weather service still decide
 | `locale` | Home Assistant's language | Locale for dates and weekday names |
 | `time_format` | Home Assistant's setting | `12` or `24` |
 | `temperature_unit` | Home Assistant's unit system | `C` or `F` |
-| `forecast_rows` | `5` | Number of forecast rows |
+| `forecast_rows` | `5` | Number of forecast rows, up to as many days or hours as your weather entity forecasts |
 | `hourly_forecast` | `false` | Show hours instead of days |
 | `show_humidity` | `false` | Show humidity under the condition |
 | `show_decimal` | `false` | Show the current temperature to one decimal |

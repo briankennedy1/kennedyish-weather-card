@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.0.0";
+const CARD_VERSION = "4.1.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 
@@ -1430,6 +1430,19 @@ export class KennedyishWeatherCard extends HTMLElementBase {
                 },
               },
             },
+            {
+              name: "temperature_unit",
+              selector: {
+                select: {
+                  mode: "dropdown",
+                  options: [
+                    { value: "auto", label: "Automatic" },
+                    { value: "C", label: "Celsius (°C)" },
+                    { value: "F", label: "Fahrenheit (°F)" },
+                  ],
+                },
+              },
+            },
             { name: "hourly_forecast", selector: { boolean: {} } },
             { name: "show_humidity", selector: { boolean: {} } },
             { name: "hide_clock", selector: { boolean: {} } },
@@ -1481,6 +1494,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           title: "Title",
           forecast_rows: "Forecast rows",
           time_format: "Time format",
+          temperature_unit: "Temperature unit",
           hourly_forecast: "Hourly forecast",
           show_humidity: "Show humidity",
           hide_clock: "Hide clock",
@@ -1542,6 +1556,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     if (!Number.isFinite(rows) || rows < 1) throw new Error("forecast_rows must be 1 or more.");
     const timeFormat = config.time_format === undefined || config.time_format === null ? "auto" : String(config.time_format);
     if (!["auto", "12", "24"].includes(timeFormat)) throw new Error('time_format must be "12" or "24".');
+    const temperatureUnit = config.temperature_unit ? String(config.temperature_unit).replace("°", "").toUpperCase() : "AUTO";
+    if (!["AUTO", "C", "F"].includes(temperatureUnit)) throw new Error('temperature_unit must be "C" or "F".');
     if (config.hide_today_section && config.hide_forecast_section) {
       throw new Error("hide_today_section and hide_forecast_section cannot both be enabled.");
     }
@@ -1556,7 +1572,12 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     }
 
     const previous = this._config;
-    this._config = { ...config, forecast_rows: Math.round(rows), time_format: timeFormat };
+    this._config = {
+      ...config,
+      forecast_rows: Math.round(rows),
+      time_format: timeFormat,
+      temperature_unit: temperatureUnit === "AUTO" ? "auto" : temperatureUnit,
+    };
     if (previous && (previous.entity !== config.entity || Boolean(previous.hourly_forecast) !== Boolean(config.hourly_forecast))) {
       this._unsubscribe();
       this._forecast = null;
@@ -1817,7 +1838,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
 
     const now = this._now();
     const attributes = stateObj.attributes || {};
-    const displayUnit = hass.config?.unit_system?.temperature || attributes.temperature_unit || "°C";
+    const displayUnit =
+      config.temperature_unit === "auto" ? hass.config?.unit_system?.temperature || attributes.temperature_unit || "°C" : `°${config.temperature_unit}`;
     const entityUnit = attributes.temperature_unit || displayUnit;
     const locale = config.locale || hass.locale?.language || undefined;
     const timeZone = config.use_browser_time ? undefined : config.time_zone || hass.config?.time_zone;

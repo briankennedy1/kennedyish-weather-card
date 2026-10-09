@@ -573,3 +573,11 @@ test("rejects a time zone that isn't one", () => {
   assert.throws(() => makeCard({ time_zone: "Europe/Lon" }), /is not a time zone/);
   assert.doesNotThrow(() => makeCard({ time_zone: "Europe/London" }));
 });
+
+test("temperature_unit shows the card in °C or °F, whatever Home Assistant uses", () => {
+  // The test weather entity reads 78 °F, on a °F system.
+  assert.match(makeCard({ temperature_unit: "C" }).shadowRoot.innerHTML, /26<span class="deg">°<\/span>/);
+  assert.match(makeCard({ temperature_unit: "°f" }).shadowRoot.innerHTML, /78<span class="deg">°<\/span>/);
+  assert.match(makeCard().shadowRoot.innerHTML, /78<span class="deg">°<\/span>/);
+  assert.throws(() => makeCard({ temperature_unit: "K" }), /must be "C" or "F"/);
+});

@@ -81,7 +81,7 @@ Or by hand:
 2. In Home Assistant, go to **Settings → Dashboards**, open the menu (⋮), and choose **Resources**. Add this URL as a **JavaScript module**:
 
    ```text
-   /local/kennedyish-weather-card.js?v=4.0.0
+   /local/kennedyish-weather-card.js?v=4.1.0
    ```
 
    Change the `?v=` number whenever you update the file, because Home Assistant caches files in `/local`.
@@ -93,6 +93,14 @@ Add a card to your dashboard and search for **Kennedyish Weather Card**. It has 
 ```yaml
 type: custom:kennedyish-weather-card
 entity: weather.forecast_home
+```
+
+### Celsius or Fahrenheit
+
+Temperatures follow Home Assistant's unit system, so the card shows °C unless your Home Assistant uses US units. To pick a unit for this card only, set `temperature_unit`:
+
+```yaml
+temperature_unit: C   # or F
 ```
 
 ### Your location
@@ -142,6 +150,7 @@ The station takes over the current temperature. The weather service still decide
 | `use_browser_time` | `false` | Use the browser's time zone instead |
 | `locale` | Home Assistant's language | Locale for dates and weekday names |
 | `time_format` | Home Assistant's setting | `12` or `24` |
+| `temperature_unit` | Home Assistant's unit system | `C` or `F` |
 | `forecast_rows` | `5` | Number of forecast rows |
 | `hourly_forecast` | `false` | Show hours instead of days |
 | `show_humidity` | `false` | Show humidity under the condition |

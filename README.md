@@ -81,7 +81,7 @@ Or by hand:
 2. In Home Assistant, go to **Settings → Dashboards**, open the menu (⋮), and choose **Resources**. Add this URL as a **JavaScript module**:
 
    ```text
-   /local/kennedyish-weather-card.js?v=4.1.1
+   /local/kennedyish-weather-card.js?v=4.1.2
    ```
 
    Change the `?v=` number whenever you update the file, because Home Assistant caches files in `/local`.

@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.1.1";
+const CARD_VERSION = "4.1.2";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 

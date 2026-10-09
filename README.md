@@ -11,14 +11,18 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/sunny.png" width="32%" alt="A sunny afternoon: a turquoise sky with a halftone sunburst over a teal forecast">
-  <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/rainy.png" width="32%" alt="A rainy day: slate skies with rain falling from dotted clouds">
-  <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/clear-night.png" width="32%" alt="A clear night: a navy sky with stars and the Milky Way">
+  <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/sunny.png" width="560" alt="A sunny afternoon: a turquoise sky with a halftone sunburst over a teal forecast">
 </p>
 
 The sky is drawn like a 1950s travel poster, shaded in Ben-Day dots, and it changes with the weather and the time of day. Below it are your forecast, sunrise and sunset, and a bar showing the whole year.
 
 It is one JavaScript file with no build step and no dependencies. It works anywhere in the world with any Home Assistant weather entity. It also uses your own weather station, if you have one.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/rainy.png" width="45%" alt="A rainy day: slate skies with rain falling from dotted clouds">
+  &nbsp;&nbsp;
+  <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/clear-night.png" width="45%" alt="A clear night: a navy sky with stars and the Milky Way">
+</p>
 
 ## Features
 

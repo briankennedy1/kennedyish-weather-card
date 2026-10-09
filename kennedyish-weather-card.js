@@ -267,6 +267,8 @@ export function mergeForecasts(forecasts, { hourly = false, timeZone, rows = 5 }
       const lows = items.map((item) => item.templow ?? item.temperature).filter(isNumber).map(Number);
       const chances = items.map((item) => item.precipitation_probability).filter(isNumber).map(Number);
       const amounts = items.map((item) => item.precipitation).filter(isNumber).map(Number);
+      const winds = items.map((item) => item.wind_speed).filter(isNumber).map(Number);
+      const gusts = items.map((item) => item.wind_gust_speed).filter(isNumber).map(Number);
       return {
         key,
         datetime: items[0].datetime,
@@ -276,6 +278,8 @@ export function mergeForecasts(forecasts, { hourly = false, timeZone, rows = 5 }
         templow: lows.length ? Math.min(...lows) : null,
         precipitation_probability: chances.length ? Math.max(...chances) : null,
         precipitation: amounts.length ? amounts.reduce((total, amount) => total + amount, 0) : null,
+        wind_speed: winds.length ? Math.max(...winds) : null,
+        wind_gust_speed: gusts.length ? Math.max(...gusts) : null,
       };
     })
     .sort((a, b) => a.datetime - b.datetime)
@@ -2132,9 +2136,13 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     if (!source) return '<div class="footer-note">Loading forecast…</div>';
 
     const precipitationUnit = stateObj.attributes?.precipitation_unit || "mm";
+    const windUnit = stateObj.attributes?.wind_speed_unit || "km/h";
+    const mph = (value) => (value === null ? null : toMph({ value, unit: windUnit }));
     const rows = mergeForecasts(source, { hourly, timeZone, rows: config.forecast_rows })
       .map((row) => ({
         ...row,
+        // Forecast services rarely call a day windy, so the forecast wind decides, as the station does for now.
+        condition: refineCondition(row.condition, { windSpeed: mph(row.wind_speed), windGust: mph(row.wind_gust_speed) }),
         high: convertTemperature(row.temperature, entityUnit, displayUnit),
         low: convertTemperature(row.templow, entityUnit, displayUnit),
       }))

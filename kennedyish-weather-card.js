@@ -12,6 +12,8 @@ const J2000 = 2_451_545;
 const J0 = 0.0009;
 const OBLIQUITY = RAD * 23.4397;
 const SUNRISE_ANGLE = RAD * -0.833;
+// Civil twilight: first light before sunrise, last light after sunset.
+const CIVIL_TWILIGHT_ANGLE = RAD * -6;
 
 const toJulian = (date) => date.valueOf() / DAY_MS - 0.5 + J1970;
 const fromJulian = (julian) => new Date((julian + 0.5 - J1970) * DAY_MS);
@@ -49,15 +51,22 @@ export function getSolarTimes(date, latitude, longitude) {
   const sunsetHourAngle = hourAngle(SUNRISE_ANGLE, latitudeRadians, sunDeclination);
 
   if (!Number.isFinite(sunsetHourAngle)) {
-    return { sunrise: null, solarNoon: fromJulian(solarNoonJulian), sunset: null };
+    return { dawn: null, sunrise: null, solarNoon: fromJulian(solarNoonJulian), sunset: null, dusk: null };
   }
 
   const sunsetJulian = solarTransitJulian(approxTransit(sunsetHourAngle, longitudeWest, cycle), meanAnomaly, sunLongitude);
   const sunriseJulian = solarNoonJulian - (sunsetJulian - solarNoonJulian);
+  // Near the poles in summer the sun never gets 6° down, and twilight runs all night.
+  const twilightHourAngle = hourAngle(CIVIL_TWILIGHT_ANGLE, latitudeRadians, sunDeclination);
+  const duskJulian = Number.isFinite(twilightHourAngle)
+    ? solarTransitJulian(approxTransit(twilightHourAngle, longitudeWest, cycle), meanAnomaly, sunLongitude)
+    : null;
   return {
+    dawn: duskJulian === null ? null : fromJulian(solarNoonJulian - (duskJulian - solarNoonJulian)),
     sunrise: fromJulian(sunriseJulian),
     solarNoon: fromJulian(solarNoonJulian),
     sunset: fromJulian(sunsetJulian),
+    dusk: duskJulian === null ? null : fromJulian(duskJulian),
   };
 }
 
@@ -1819,9 +1828,14 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const hasTimes = Boolean(today.sunrise && today.sunset && yesterday.sunrise && yesterday.sunset);
     const sunUp = this._hass.states?.["sun.sun"]?.state !== "below_horizon";
     const progress = today.sunrise && today.sunset ? (now - today.sunrise) / (today.sunset - today.sunrise) : sunUp ? 0.5 : -1;
+    // Dawn colors start at first light, before sunrise, and dusk's last until last light.
+    const { dawn, sunrise, sunset, dusk } = today;
+    const twilight =
+      sunrise && now < sunrise && now >= (dawn ?? sunrise) ? "dawn" : sunset && now > sunset && now <= (dusk ?? sunset) ? "dusk" : null;
     return {
       today,
       progress,
+      twilight,
       isDay: progress >= 0 && progress <= 1,
       duration: hasTimes ? (today.sunset - today.sunrise) / 1000 : null,
       change: hasTimes ? (today.sunset - today.sunrise - (yesterday.sunset - yesterday.sunrise)) / 1000 : null,
@@ -1854,7 +1868,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const timeOptions = { timeZone, timeFormat, locale };
 
     const solar = this._solar(now);
-    const night = solar ? !solar.isDay : hass.states?.["sun.sun"]?.state === "below_horizon";
+    const phase = solar ? solar.twilight || getSkyPhase(solar.progress) : hass.states?.["sun.sun"]?.state === "below_horizon" ? "night" : "day";
+    // Twilight counts as day for the sky: a clear dawn is "Clear", not "Clear night".
+    const night = phase === "night";
     const reading = (entityId) => {
       const value = parseFloat(entityId ? hass.states?.[entityId]?.state : NaN);
       return Number.isFinite(value) ? { value, unit: hass.states[entityId].attributes?.unit_of_measurement || "" } : null;
@@ -1873,7 +1889,6 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       aqi: Number.isFinite(aqiReading) ? aqiReading : pm25Reading ? aqiFromPm25(pm25Reading.value) : null,
     }), night);
     const group = getConditionGroup(condition);
-    const phase = solar ? getSkyPhase(solar.progress) : night ? "night" : "day";
     const skyPhase = group === "clear" || group === "partly" ? phase : night ? "night" : "day";
     const conditionLabel = condition === "sunny" && (phase === "dawn" || phase === "dusk")
       ? "Clear"

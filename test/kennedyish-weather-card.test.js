@@ -103,13 +103,18 @@ test("switches to the night sky after sunset, trading the progress bar for a div
   assert.match(html, /Sunrise/);
 });
 
-test("updates the clear-weather label and sky at sunrise and sunset before the provider refreshes", () => {
-  const { sunrise, sunset } = getSolarTimes(new Date("2026-10-08T19:00:00Z"), 37.7749, -122.4194);
+test("dawn starts at first light and dusk lasts until last light, before the provider refreshes", () => {
+  const { dawn, sunrise, sunset, dusk } = getSolarTimes(new Date("2026-10-08T19:00:00Z"), 37.7749, -122.4194);
+  assert.ok(sunrise - dawn > 20 * 60_000 && sunrise - dawn < 35 * 60_000, "first light comes about half an hour before sunrise");
   const cases = [
-    [sunrise, -1, "sunny", "night", "Clear night", "clear-night"],
+    [dawn, -1, "sunny", "night", "Clear night", "clear-night"],
+    [dawn, 1, "clear-night", "dawn", "Clear", "sunny"],
+    [sunrise, -1, "clear-night", "dawn", "Clear", "sunny"],
     [sunrise, 1, "clear-night", "dawn", "Clear", "sunny"],
     [sunset, -1, "clear-night", "dusk", "Clear", "sunny"],
-    [sunset, 1, "sunny", "night", "Clear night", "clear-night"],
+    [sunset, 1, "clear-night", "dusk", "Clear", "sunny"],
+    [dusk, -1, "clear-night", "dusk", "Clear", "sunny"],
+    [dusk, 1, "sunny", "night", "Clear night", "clear-night"],
   ];
   for (const [boundary, offset, condition, phase, label, scene] of cases) {
     const card = makeCard({ hide_forecast_section: true }, {

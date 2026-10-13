@@ -1,6 +1,7 @@
 const CARD_VERSION = "4.1.2";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
+const FEATURE_FORECAST_TWICE_DAILY = 4;
 
 // ── Sun ────────────────────────────────────────────────────────────────────
 // Solar times after the NOAA/SunCalc formulas.
@@ -1753,9 +1754,11 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const features = Number(stateObj?.attributes?.supported_features) || 0;
     const daily = (features & FEATURE_FORECAST_DAILY) !== 0;
     const hourly = (features & FEATURE_FORECAST_HOURLY) !== 0;
-    if (!daily && !hourly) return null;
+    const twiceDaily = (features & FEATURE_FORECAST_TWICE_DAILY) !== 0;
+    if (!daily && !hourly && !twiceDaily) return null;
     if (this._config.hourly_forecast) return hourly ? "hourly" : "unsupported";
-    return daily ? "daily" : "hourly";
+    // NWS has only day and night periods; mergeForecasts folds each pair into one day.
+    return daily ? "daily" : twiceDaily ? "twice_daily" : "hourly";
   }
 
   _subscribe() {

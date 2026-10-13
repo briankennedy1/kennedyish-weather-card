@@ -168,6 +168,14 @@ test("uses the legacy forecast attribute when the entity has no forecast feature
   assert.equal(card.shadowRoot.innerHTML.match(/class="row/g).length, 1);
 });
 
+test("asks for the twice-daily forecast when the entity has no daily one, like NWS", () => {
+  const nws = { attributes: { supported_features: 6 } };
+  assert.equal(makeCard({}, { features: 6 })._forecastType(nws), "twice_daily");
+  assert.equal(makeCard({ hourly_forecast: true }, { features: 6 })._forecastType(nws), "hourly");
+  assert.equal(makeCard()._forecastType({ attributes: { supported_features: 7 } }), "daily");
+  assert.equal(makeCard({ hourly_forecast: true })._forecastType({ attributes: { supported_features: 4 } }), "unsupported");
+});
+
 test("reports a missing entity and validates config like clock-weather-card", () => {
   const card = makeCard({ entity: "weather.missing" });
   assert.match(card.shadowRoot.innerHTML, /weather.missing was not found/);

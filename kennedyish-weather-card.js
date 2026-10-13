@@ -341,6 +341,23 @@ export function refineCondition(condition, { rainRate = null, windSpeed = null, 
   return result;
 }
 
+/**
+ * The entity's current condition, or, when its station doesn't report one
+ * (NWS picks remote stations that measure only temperature and wind), the
+ * condition of the forecast period that's under way.
+ */
+export function currentCondition(state, forecasts, now = new Date()) {
+  if (state && state !== "unknown" && state !== "unavailable") return state;
+  let current = null;
+  for (const forecast of forecasts || []) {
+    const datetime = new Date(forecast.datetime);
+    if (Number.isNaN(datetime.valueOf()) || !forecast.condition) continue;
+    if (datetime <= now || !current) current = forecast;
+    if (datetime > now) break;
+  }
+  return current?.condition ?? state;
+}
+
 // ── Weather alerts ─────────────────────────────────────────────────────────
 
 const ALERT_REFRESH_MS = 5 * 60_000;
@@ -1885,7 +1902,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const pm25Reading = reading(config.pm25_sensor);
     // Weather providers can keep yesterday's clear-night state after sunrise.
     // Use the same local day/night calculation for the label and sky artwork.
-    const condition = normalizeCondition(refineCondition(stateObj.state, {
+    const forecasts = this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast;
+    const condition = normalizeCondition(refineCondition(currentCondition(stateObj.state, forecasts, now), {
       rainRate: rain ? toInchesPerHour(rain) : null,
       windSpeed: wind ? toMph(wind) : null,
       windGust: gust ? toMph(gust) : null,

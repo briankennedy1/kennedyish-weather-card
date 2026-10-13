@@ -6,6 +6,7 @@ import {
   activeAlerts,
   aqiFromPm25,
   convertTemperature,
+  currentCondition,
   fetchRainChances,
   formatPrecipitation,
   fetchWeatherAlerts,
@@ -174,6 +175,21 @@ test("asks for the twice-daily forecast when the entity has no daily one, like N
   assert.equal(makeCard({ hourly_forecast: true }, { features: 6 })._forecastType(nws), "hourly");
   assert.equal(makeCard()._forecastType({ attributes: { supported_features: 7 } }), "daily");
   assert.equal(makeCard({ hourly_forecast: true })._forecastType({ attributes: { supported_features: 4 } }), "unsupported");
+});
+
+test("falls back to the forecast period under way when the station reports no condition", () => {
+  const periods = [
+    { datetime: "2026-10-13T13:00:00Z", condition: "sunny" },
+    { datetime: "2026-10-14T01:00:00Z", condition: "rainy" },
+  ];
+  assert.equal(currentCondition("cloudy", periods, new Date("2026-10-13T15:00:00Z")), "cloudy");
+  assert.equal(currentCondition("unknown", periods, new Date("2026-10-13T15:00:00Z")), "sunny");
+  assert.equal(currentCondition("unknown", periods, new Date("2026-10-14T02:00:00Z")), "rainy");
+  assert.equal(currentCondition("unavailable", periods, new Date("2026-10-13T12:00:00Z")), "sunny");
+  assert.equal(currentCondition("unknown", null), "unknown");
+
+  const html = makeCard({}, { condition: "unknown", now: "2026-09-22T20:05:00Z" }).shadowRoot.innerHTML;
+  assert.match(html, /<span class="label">Sunny<\/span>/);
 });
 
 test("reports a missing entity and validates config like clock-weather-card", () => {

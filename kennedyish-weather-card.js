@@ -2633,7 +2633,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         .clock .figure { font-size: 29px; }
         .time { font-size: 16px; }
         .alert-until { display: none; }
-        .forecast { grid-template-columns: auto 26px auto minmax(36px, 1fr) auto; }
+        .forecast { grid-template-columns: auto 26px auto auto minmax(36px, 1fr) auto; }
         .day { font-size: 9.5px; letter-spacing: .14em; }
         .low, .high { font-size: 13px; }
         .daylight-change { letter-spacing: .1em; }

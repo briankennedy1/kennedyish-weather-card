@@ -373,7 +373,7 @@ test("fetches NWS rain chances and takes the highest still ahead on each day", a
   assert.equal(byDay.has("09/24/2026"), false, "no chance given, no number shown");
 });
 
-test("shows rain in the forecast rows above a 5% chance, with the expected amount", () => {
+test("shows rain in the forecast rows above a 5% chance, as the expected amount when there is one", () => {
   const card = makeCard();
   // Met.no gives amounts but no chance of rain; the chance comes from the NWS.
   card._forecast = [
@@ -389,8 +389,10 @@ test("shows rain in the forecast rows above a 5% chance, with the expected amoun
   ];
   card._render();
   const rain = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
-  assert.deepEqual(rain, ["60% 0.25 in", "", "10%"], "5% or less shows nothing; no amount, no amount line");
-  assert.match(card.shadowRoot.innerHTML, /60% chance of rain, 0.25 in expected/);
+  assert.deepEqual(rain, ["0.25 in", "", "10%"], "an amount replaces the chance; 5% or less shows nothing");
+  const labels = [...card.shadowRoot.innerHTML.matchAll(/role="listitem" aria-label="([^"]*)"/g)].map((match) => match[1]);
+  assert.match(labels[0], /, 0.25 in expected$/, "the amount is said aloud in place of the chance");
+  assert.match(labels[2], /, 10% chance of rain$/);
 
   card._rainChances = null;
   card._render();

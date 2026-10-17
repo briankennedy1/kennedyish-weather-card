@@ -2239,15 +2239,14 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         // Rain shows once its chance passes 5%, or, with no chance given, when rain is forecast at all.
         const showRain = chance !== null ? chance > RAIN_CHANCE_MIN : amount !== null;
         const amountText = amount === null ? "" : formatPrecipitation(amount, precipitationUnit);
-        const rainText = showRain ? [chance !== null ? `${Math.round(chance)}% chance of rain` : "", amountText ? `${amountText} expected` : ""].filter(Boolean).join(", ") : "";
+        // An expected amount says more than a chance, so it takes the chance's place.
+        const rainText = !showRain ? "" : amountText ? `${amountText} expected` : `${Math.round(chance)}% chance of rain`;
         const conditionLabel = this._conditionLabel(row.condition);
         return `
           <div class="row${row.isNow ? " now" : ""}" role="listitem" aria-label="${escapeHtml(`${label(row)}: ${conditionLabel}, low ${formatNumber(row.lowShown)}, high ${formatNumber(row.highShown)}${rainText ? `, ${rainText}` : ""}`)}">
             <span class="day">${escapeHtml(label(row))}</span>
             <span class="ficon" title="${escapeHtml(conditionLabel)}">${weatherIllustration(row.condition, { night: isNight(row) })}</span>
-            <span class="rain">${showRain
-              ? `${chance !== null ? `<span class="rain-chance">${Math.round(chance)}%</span>` : ""}${amountText ? `<span class="rain-amount">${escapeHtml(amountText)}</span>` : ""}`
-              : ""}</span>
+            <span class="rain">${!showRain ? "" : amountText ? escapeHtml(amountText) : `${Math.round(chance)}%`}</span>
             <span class="low">${hourly && row.lowShown === row.highShown ? "" : `${formatNumber(row.lowShown)}°`}</span>
             <span class="bar"><span class="range" style="left: ${start.toFixed(1)}%; width: ${(end - start).toFixed(1)}%; background: linear-gradient(90deg, ${gradient});">${dotPosition === null ? "" : `<span class="now-dot" style="left: ${dotPosition.toFixed(1)}%"></span>`}</span></span>
             <span class="high">${formatNumber(row.highShown)}°</span>
@@ -2500,9 +2499,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .row.now .day { color: ${textColor}; }
       .ficon { display: block; width: 30px; height: 25px; }
       .ficon .wx { display: block; width: 100%; height: 100%; }
-      .rain { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; color: #8ed6c8; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
-      .rain-chance { font-size: 10px; font-weight: 700; letter-spacing: .04em; }
-      .rain-amount { font-size: 8.5px; font-weight: 700; letter-spacing: .04em; opacity: .75; }
+      .rain { display: flex; justify-content: flex-end; color: #8ed6c8; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .04em; line-height: 1; white-space: nowrap; }
       .low, .high { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; text-align: right; }
       .low { color: ${mutedColor}; }
       .bar { position: relative; height: 8px; border-radius: 999px; background: rgba(251, 243, 226, .12); }
@@ -2635,7 +2632,6 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         .figure { font-size: 31px; }
         .clock .figure { font-size: 29px; }
         .time { font-size: 16px; }
-        .rain-amount { display: none; }
         .alert-until { display: none; }
         .forecast { grid-template-columns: auto 26px auto minmax(36px, 1fr) auto; }
         .day { font-size: 9.5px; letter-spacing: .14em; }

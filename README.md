@@ -27,7 +27,7 @@ It is one JavaScript file with no build step and no dependencies. It works anywh
 ## Features
 
 - **A sky for every condition.** Sunbursts, gulls, and glints on clear days. Stars, a shooting star, and a satellite on clear nights. Rain falls in three depths, lightning strikes the hills, snow sways, hail bounces, fog drifts, wind bends the poplars, and wildfire smoke dims the sun. Dawn warms the sky to peach and golden hour turns it coral.
-- **A forecast at a glance.** Daily or hourly rows with temperature bars that run from cobalt through turquoise and mustard to coral. In the US, the chance of rain shows when it passes 5%.
+- **A forecast at a glance.** Daily or hourly rows with temperature bars that run from cobalt through turquoise and mustard to coral. In the US, rain shows once its chance passes 5%, as the expected amount when the forecast gives one.
 - **Daylight.** Sunrise, sunset, how far through the day you are, and how much daylight you gained or lost since yesterday.
 - **The year.** A bar of the whole year in season colors, with a countdown to the next season. Point at or drag along it to see any day. The seasons flip in the southern hemisphere.
 - **Season celebrations.** On the first day of each season, the footer takes on the season's colors and a ribbon gives the exact time of the equinox or solstice. Blossoms, starbursts, leaves, or snowflakes drift through the sky.

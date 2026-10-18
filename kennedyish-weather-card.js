@@ -2505,7 +2505,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .ficon { display: block; width: 30px; height: 25px; }
       .ficon .wx { display: block; width: 100%; height: 100%; }
       .rain { display: flex; justify-content: flex-end; color: #8ed6c8; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .04em; line-height: 1; white-space: nowrap; }
-      .rain-amount { color: #a8d4f0; }
+      .rain-amount { color: #9db8ff; }
       .low, .high { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; text-align: right; }
       .low { color: ${mutedColor}; }
       .bar { position: relative; height: 8px; border-radius: 999px; background: rgba(251, 243, 226, .12); }

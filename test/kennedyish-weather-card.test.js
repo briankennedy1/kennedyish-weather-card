@@ -388,7 +388,7 @@ test("shows rain in the forecast rows above a 5% chance, as the expected amount 
     { start: "2026-09-24T13:00:00Z", end: "2026-09-25T13:00:00Z", chance: 10 },
   ];
   card._render();
-  const rain = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  const rain = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain(?: rain-amount)?">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
   assert.deepEqual(rain, [".25 in", "", "10%"], "an amount replaces the chance; 5% or less shows nothing");
   const labels = [...card.shadowRoot.innerHTML.matchAll(/role="listitem" aria-label="([^"]*)"/g)].map((match) => match[1]);
   assert.match(labels[0], /, \.25 in expected$/, "the amount is said aloud in place of the chance");
@@ -396,7 +396,7 @@ test("shows rain in the forecast rows above a 5% chance, as the expected amount 
 
   card._rainChances = null;
   card._render();
-  const noChance = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  const noChance = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain(?: rain-amount)?">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
   assert.deepEqual(noChance, [".25 in", ".02 in", ""], "without NWS chances, forecast amounts still show");
 
   // Under a tenth of an inch, the chance says more than the amount.
@@ -406,15 +406,16 @@ test("shows rain in the forecast rows above a 5% chance, as the expected amount 
     { datetime: "2026-09-24T19:00:00Z", condition: "rainy", temperature: 64, templow: 54, precipitation: 0.09, precipitation_probability: 4 },
   ];
   card._render();
-  const trace = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  const trace = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain(?: rain-amount)?">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
   assert.deepEqual(trace, ["26%", ".1 in", ""], "a trace gives way to the chance; a tenth of an inch shows as the amount");
   const traceLabels = [...card.shadowRoot.innerHTML.matchAll(/role="listitem" aria-label="([^"]*)"/g)].map((match) => match[1]);
   assert.match(traceLabels[0], /, 26% chance of rain$/);
+  assert.deepEqual([...card.shadowRoot.innerHTML.matchAll(/<span class="(rain[^"]*)">/g)].map((match) => match[1]), ["rain", "rain rain-amount", "rain"], "amounts get their own color");
 
   card._hass.states["weather.forecast_home"].attributes.precipitation_unit = "mm";
   card._forecast = card._forecast.map((row, i) => ({ ...row, precipitation: [2, 2.5, 6][i], precipitation_probability: 30 }));
   card._render();
-  const metric = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  const metric = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain(?: rain-amount)?">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
   assert.deepEqual(metric, ["30%", "3 mm", "6 mm"], "the metric cutoff is 2.5 mm");
 
   assert.equal(formatPrecipitation(0.4, "in"), ".4 in");

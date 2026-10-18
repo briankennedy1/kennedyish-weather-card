@@ -2251,7 +2251,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           <div class="row${row.isNow ? " now" : ""}" role="listitem" aria-label="${escapeHtml(`${label(row)}: ${conditionLabel}, low ${formatNumber(row.lowShown)}, high ${formatNumber(row.highShown)}${rainText ? `, ${rainText}` : ""}`)}">
             <span class="day">${escapeHtml(label(row))}</span>
             <span class="ficon" title="${escapeHtml(conditionLabel)}">${weatherIllustration(row.condition, { night: isNight(row) })}</span>
-            <span class="rain">${!showRain ? "" : amountText ? escapeHtml(amountText) : `${Math.round(chance)}%`}</span>
+            <span class="rain${showRain && amountText ? " rain-amount" : ""}">${!showRain ? "" : amountText ? escapeHtml(amountText) : `${Math.round(chance)}%`}</span>
             <span class="low">${hourly && row.lowShown === row.highShown ? "" : `${formatNumber(row.lowShown)}°`}</span>
             <span class="bar"><span class="range" style="left: ${start.toFixed(1)}%; width: ${(end - start).toFixed(1)}%; background: linear-gradient(90deg, ${gradient});">${dotPosition === null ? "" : `<span class="now-dot" style="left: ${dotPosition.toFixed(1)}%"></span>`}</span></span>
             <span class="high">${formatNumber(row.highShown)}°</span>
@@ -2505,6 +2505,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .ficon { display: block; width: 30px; height: 25px; }
       .ficon .wx { display: block; width: 100%; height: 100%; }
       .rain { display: flex; justify-content: flex-end; color: #8ed6c8; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .04em; line-height: 1; white-space: nowrap; }
+      .rain-amount { color: #a8d4f0; }
       .low, .high { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; text-align: right; }
       .low { color: ${mutedColor}; }
       .bar { position: relative; height: 8px; border-radius: 999px; background: rgba(251, 243, 226, .12); }

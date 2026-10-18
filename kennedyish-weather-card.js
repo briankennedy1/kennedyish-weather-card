@@ -491,6 +491,8 @@ export function getYearDays(now, { timeZone, southern = false } = {}) {
 const RAIN_CHANCE_REFRESH_MS = 30 * 60_000;
 // Forecast rows mention rain only above this chance, in percent.
 const RAIN_CHANCE_MIN = 5;
+// Smaller amounts give way to the chance, when there is one: a tenth of an inch, in each unit.
+const RAIN_AMOUNT_MIN = { in: 0.1, cm: 0.25, mm: 2.5 };
 
 /** An expected precipitation amount, like "0.25 in" or "6 mm". */
 export function formatPrecipitation(amount, unit = "mm") {
@@ -2235,9 +2237,12 @@ export class KennedyishWeatherCard extends HTMLElementBase {
               : 50
             : null;
         const chance = row.precipitation_probability ?? (hourly ? null : rainChances.get(row.key) ?? null);
-        const amount = row.precipitation > 0 ? row.precipitation : null;
+        const forecastAmount = row.precipitation > 0 ? row.precipitation : null;
         // Rain shows once its chance passes 5%, or, with no chance given, when rain is forecast at all.
-        const showRain = chance !== null ? chance > RAIN_CHANCE_MIN : amount !== null;
+        const showRain = chance !== null ? chance > RAIN_CHANCE_MIN : forecastAmount !== null;
+        // A trace says less than the chance, so the amount shows only from a tenth of an inch (2.5 mm).
+        const amountMin = RAIN_AMOUNT_MIN[precipitationUnit] ?? RAIN_AMOUNT_MIN.mm;
+        const amount = forecastAmount !== null && (chance === null || forecastAmount >= amountMin - 1e-9) ? forecastAmount : null;
         const amountText = amount === null ? "" : formatPrecipitation(amount, precipitationUnit);
         // An expected amount says more than a chance, so it takes the chance's place.
         const rainText = !showRain ? "" : amountText ? `${amountText} expected` : `${Math.round(chance)}% chance of rain`;

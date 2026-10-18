@@ -398,6 +398,25 @@ test("shows rain in the forecast rows above a 5% chance, as the expected amount 
   card._render();
   const noChance = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
   assert.deepEqual(noChance, ["0.25 in", "0.02 in", ""], "without NWS chances, forecast amounts still show");
+
+  // Under a tenth of an inch, the chance says more than the amount.
+  card._forecast = [
+    { datetime: "2026-09-22T19:00:00Z", condition: "rainy", temperature: 64, templow: 54, precipitation: 0.02, precipitation_probability: 26 },
+    { datetime: "2026-09-23T19:00:00Z", condition: "rainy", temperature: 64, templow: 54, precipitation: 0.1, precipitation_probability: 40 },
+    { datetime: "2026-09-24T19:00:00Z", condition: "rainy", temperature: 64, templow: 54, precipitation: 0.09, precipitation_probability: 4 },
+  ];
+  card._render();
+  const trace = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  assert.deepEqual(trace, ["26%", "0.1 in", ""], "a trace gives way to the chance; a tenth of an inch shows as the amount");
+  const traceLabels = [...card.shadowRoot.innerHTML.matchAll(/role="listitem" aria-label="([^"]*)"/g)].map((match) => match[1]);
+  assert.match(traceLabels[0], /, 26% chance of rain$/);
+
+  card._hass.states["weather.forecast_home"].attributes.precipitation_unit = "mm";
+  card._forecast = card._forecast.map((row, i) => ({ ...row, precipitation: [2, 2.5, 6][i], precipitation_probability: 30 }));
+  card._render();
+  const metric = [...card.shadowRoot.innerHTML.matchAll(/<span class="rain">([\s\S]*?)<\/span>\s*<span class="low">/g)].map((match) => match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+  assert.deepEqual(metric, ["30%", "3 mm", "6 mm"], "the metric cutoff is 2.5 mm");
+
   assert.equal(formatPrecipitation(0.4, "in"), "0.4 in");
   assert.equal(formatPrecipitation(6.2, "mm"), "6 mm");
 });

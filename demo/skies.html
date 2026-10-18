@@ -180,10 +180,11 @@
             frame.className = "frame";
             const card = document.createElement("kennedyish-weather-card");
             card._now = () => now;
-            // No network: no alerts, and rain chances only where it's raining.
+            // No network: no alerts, and rain chances only where it's raining, tapering off tomorrow.
             card._fetchAlerts = async () => [];
+            const day = (n) => new Date(at(0).valueOf() + n * 86_400_000).toISOString();
             card._fetchRainChances = async () =>
-              RAINY.includes(condition) ? [{ start: at(0).toISOString(), end: new Date(at(0).valueOf() + 86_400_000).toISOString(), chance: condition === "drizzle" ? 40 : 80 }] : [];
+              RAINY.includes(condition) ? [{ start: day(0), end: day(1), chance: condition === "drizzle" ? 40 : 80 }, { start: day(1), end: day(2), chance: 30 }] : [];
             // The live dashboard's config.
             card.setConfig({ type: "custom:kennedyish-weather-card", entity: "weather.forecast_home" });
             card.hass = makeHass(condition, now);

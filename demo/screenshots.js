@@ -30,7 +30,10 @@ const SHOTS = [
   ].map(([file, label]) => [`sky-${file}.png`, `${BASE}/skies.html`, skiesCard(label, true)]),
   ["alert.png", staging("alert=heat&date=2026-08-14"), stagingCard],
   ["celebration.png", staging("date=2026-09-22&condition=partlycloudy"), stagingCard],
+  ["buttons.png", `${BASE}/buttons.html`, `document.getElementById("section")`],
 ];
+// `npm run screenshots buttons.png` captures only the files named.
+const only = process.argv.slice(2);
 
 const chrome = spawn(CHROME, [
   "--headless=new", `--remote-debugging-port=${PORT}`, `--user-data-dir=${await mkdtemp(join(tmpdir(), "kwc-"))}`,
@@ -60,7 +63,7 @@ try {
   await send("Emulation.setDeviceMetricsOverride", { width: 1700, height: 2400, deviceScaleFactor: 2, mobile: false });
   // Transparent page, so the card's rounded corners suit light and dark READMEs alike.
   await send("Emulation.setDefaultBackgroundColorOverride", { color: { r: 0, g: 0, b: 0, a: 0 } });
-  for (const [file, url, element] of SHOTS) {
+  for (const [file, url, element] of SHOTS.filter(([file]) => !only.length || only.includes(file))) {
     await send("Page.navigate", { url: "about:blank" });
     await send("Page.navigate", { url });
     // Let fonts load, the forecast arrive, and the sky fade in.

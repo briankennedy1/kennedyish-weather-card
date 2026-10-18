@@ -494,10 +494,10 @@ const RAIN_CHANCE_MIN = 5;
 // Smaller amounts give way to the chance, when there is one: a tenth of an inch, in each unit.
 const RAIN_AMOUNT_MIN = { in: 0.1, cm: 0.25, mm: 2.5 };
 
-/** An expected precipitation amount, like "0.25 in" or "6 mm". */
+/** An expected precipitation amount, like ".25 in" or "6 mm". */
 export function formatPrecipitation(amount, unit = "mm") {
-  // Hundredths under an inch (0.25 in), tenths above (1.2 in), without trailing zeros.
-  if (unit === "in") return `${Number(amount.toFixed(amount < 1 ? 2 : 1))} in`;
+  // Hundredths under an inch (.25 in), tenths above (1.2 in), without leading or trailing zeros.
+  if (unit === "in") return `${String(Number(amount.toFixed(amount < 1 ? 2 : 1))).replace(/^0\./, ".")} in`;
   return `${amount < 1 ? amount.toFixed(1) : Math.round(amount)} ${unit}`;
 }
 

@@ -493,6 +493,12 @@ const RAIN_CHANCE_REFRESH_MS = 30 * 60_000;
 const RAIN_CHANCE_MIN = 5;
 // Smaller amounts give way to the chance, when there is one: a tenth of an inch, in each unit.
 const RAIN_AMOUNT_MIN = { in: 0.1, cm: 0.25, mm: 2.5 };
+/** A station's rain totals, in the order they show under the forecast. */
+const RAIN_TOTALS = [
+  ["rain_today_sensor", "Today"],
+  ["rain_event_sensor", "Event"],
+  ["rain_year_sensor", "Year"],
+];
 
 /** An expected precipitation amount, like ".25 in" or "6 mm". */
 export function formatPrecipitation(amount, unit = "mm") {
@@ -1500,6 +1506,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
             { name: "apparent_sensor", selector: sensor },
             { name: "aqi_sensor", selector: sensor },
             { name: "rain_rate_sensor", selector: sensor },
+            { name: "rain_today_sensor", selector: sensor },
+            { name: "rain_event_sensor", selector: sensor },
+            { name: "rain_year_sensor", selector: sensor },
             { name: "wind_speed_sensor", selector: sensor },
             { name: "wind_gust_sensor", selector: sensor },
             { name: "pm25_sensor", selector: sensor },
@@ -1545,6 +1554,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           apparent_sensor: "Feels-like sensor",
           aqi_sensor: "Air quality index sensor",
           rain_rate_sensor: "Rain rate sensor",
+          rain_today_sensor: "Daily rain sensor",
+          rain_event_sensor: "Event rain sensor",
+          rain_year_sensor: "Yearly rain sensor",
           wind_speed_sensor: "Wind speed sensor",
           wind_gust_sensor: "Wind gust sensor",
           pm25_sensor: "PM2.5 sensor",
@@ -1560,6 +1572,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           temperature_sensor: "Overrides the weather entity's current temperature",
           humidity_sensor: "Overrides the weather entity's humidity",
           rain_rate_sensor: "A station's rain gauge; corrects rain in the current condition",
+          rain_today_sensor: "Rain totals show in a row under the forecast",
           wind_speed_sensor: "A station's sustained wind; shows windy at 20 mph or more",
           show_alerts: "National Weather Service alerts (US only); on by default",
           pm25_sensor: "Fine particles in µg/m³; bad air shows as an alert bar",
@@ -1721,7 +1734,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
   getCardSize() {
     const sky = this._config?.hide_today_section ? 0 : 4;
     const forecast = this._config?.hide_forecast_section ? 1 : 1 + Math.ceil((this._config?.forecast_rows ?? 5) / 2);
-    return sky + forecast;
+    const rainTotals = RAIN_TOTALS.some(([key]) => this._config?.[key]) ? 1 : 0;
+    return sky + forecast + rainTotals;
   }
 
   getGridOptions() {
@@ -1754,6 +1768,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       states[config.apparent_sensor],
       states[config.aqi_sensor],
       states[config.rain_rate_sensor],
+      states[config.rain_today_sensor],
+      states[config.rain_event_sensor],
+      states[config.rain_year_sensor],
       states[config.wind_speed_sensor],
       states[config.wind_gust_sensor],
       states[config.pm25_sensor],
@@ -2037,6 +2054,20 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         </div>`
       : "";
 
+    const rainTotals = RAIN_TOTALS.map(([key, label]) => ({ label, total: reading(config[key]) })).filter(({ total }) => total);
+    const rainBlock = rainTotals.length
+      ? `<div class="rain-totals" style="--count: ${rainTotals.length}">${rainTotals
+          .map(({ label, total }) => {
+            const [amount, unit = ""] = formatPrecipitation(total.value, total.unit).split(" ");
+            return `
+              <div class="rain-total">
+                <div class="time-line"><strong class="time">${escapeHtml(amount)}</strong>${unit ? `<span class="unit">${escapeHtml(unit)}</span>` : ""}</div>
+                <span class="label">${label}</span>
+              </div>`;
+          })
+          .join("")}</div>`
+      : "";
+
     const alerts = config.show_alerts === false ? [] : activeAlerts(this._alerts, now);
     const aqiThreshold = isNumber(config.aqi_alert_threshold) ? Number(config.aqi_alert_threshold) : AQI_ALERT_DEFAULT;
     const alertBand =
@@ -2049,7 +2080,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       <ha-card aria-label="${escapeHtml(aria)}" class="${celebration ? `celebrate celebrate-${celebration.season}` : ""}">
         <div class="content">
           ${sky}
-          ${alertBand || banner || forecast || sunTimes || year ? `<div class="footer">${alertBand}${banner}${forecast}${sunTimes ? `<div class="sun-block${solar.isDay ? "" : " divided"}">${sunTimes}</div>` : ""}${year}</div>` : ""}
+          ${alertBand || banner || forecast || rainBlock || sunTimes || year ? `<div class="footer">${alertBand}${banner}${forecast}${rainBlock}${sunTimes ? `<div class="sun-block${solar.isDay ? "" : " divided"}">${sunTimes}</div>` : ""}${year}</div>` : ""}
         </div>
       </ha-card>`;
     // The first render guesses the sky size; reading it back forces layout, so
@@ -2623,8 +2654,16 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .sun-time .unit { color: ${mutedColor}; font-size: 10px; }
       .sun-time .label { color: ${mutedColor}; font-size: 9.5px; }
       .daylight-change { color: ${mutedColor}; font-size: 9.5px; letter-spacing: .18em; line-height: 1.5; text-align: center; }
+      .rain-totals { display: grid; grid-template-columns: repeat(var(--count), minmax(0, 1fr)); column-gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
+      .footer > .rain-totals:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+      .rain-total { display: flex; flex-direction: column; align-items: center; gap: 5px; white-space: nowrap; }
+      .rain-total:first-child { align-items: flex-start; }
+      .rain-total:last-child:not(:first-child) { align-items: flex-end; }
+      .rain-total .time { color: #9db8ff; }
+      .rain-total .unit { color: ${mutedColor}; font-size: 10px; }
+      .rain-total .label { color: ${mutedColor}; font-size: 9.5px; }
       .forecast + .sun-block, .footer-note + .sun-block { margin-top: 16px; }
-      .forecast + .sun-block.divided, .footer-note + .sun-block.divided { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
+      .forecast + .sun-block.divided, .footer-note + .sun-block.divided, .rain-totals + .sun-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
       .year { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
       .sun-block:not(.divided) + .year { margin-top: 16px; }
       .year-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
@@ -2676,7 +2715,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         .unit { font-size: 11px; }
         .label { font-size: 9.5px; letter-spacing: .16em; }
         .time { font-size: clamp(17px, 5cqw, 21px); }
-        .sun-time .label { font-size: 8.5px; letter-spacing: .14em; }
+        .sun-time .label, .rain-total .label { font-size: 8.5px; letter-spacing: .14em; }
         .daylight-change { font-size: 8.5px; letter-spacing: .14em; }
         .forecast { column-gap: 8px; }
       }

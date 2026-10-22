@@ -327,6 +327,32 @@ test("renders the station's condition and temperature over the forecast service'
   assert.match(html, /<svg class="sky-scene scene-rainy"/);
 });
 
+test("shows the station's rain totals in a row under the forecast", () => {
+  const card = makeCard({ rain_today_sensor: "sensor.rain_day", rain_event_sensor: "sensor.rain_event", rain_year_sensor: "sensor.rain_year" });
+  card._hass = {
+    ...card._hass,
+    states: {
+      ...card._hass.states,
+      "sensor.rain_day": { state: "0.08", attributes: { unit_of_measurement: "in" } },
+      "sensor.rain_event": { state: "0", attributes: { unit_of_measurement: "in" } },
+      "sensor.rain_year": { state: "32.78", attributes: { unit_of_measurement: "in" } },
+    },
+  };
+  card._render();
+  const html = card.shadowRoot.innerHTML;
+  const totals = html.slice(html.indexOf('<div class="rain-totals"'), html.indexOf('<div class="sun-block'));
+  assert.match(totals, /--count: 3/);
+  assert.deepEqual([...totals.matchAll(/<strong class="time">([^<]+)<\/strong><span class="unit">in<\/span>/g)].map((m) => m[1]), [".08", "0", "32.8"]);
+  assert.deepEqual([...totals.matchAll(/<span class="label">([^<]+)<\/span>/g)].map((m) => m[1]), ["Today", "Event", "Year"]);
+  assert.ok(html.indexOf('class="forecast"') < html.indexOf('class="rain-totals"'));
+
+  // A sensor that is unavailable drops out; with none configured, there is no row.
+  card._hass.states["sensor.rain_event"] = { state: "unavailable", attributes: {} };
+  card._render();
+  assert.match(card.shadowRoot.innerHTML, /--count: 2/);
+  assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="rain-totals"/);
+});
+
 test("keeps only alerts in effect, one per event, most severe first", () => {
   const now = new Date("2026-09-23T18:00:00Z");
   const alerts = activeAlerts(

@@ -1426,6 +1426,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     this._forecastError = null;
     this._subscription = null;
     this._subscriptionKey = null;
+    this._hourNow = null;
+    this._hourSubscription = null;
+    this._hourSubscriptionKey = null;
     this._watched = null;
     this._timer = null;
     this._alerts = [];
@@ -1786,6 +1789,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     if (!hass?.connection || !config || !this.isConnected) return;
     const stateObj = hass.states?.[config.entity];
     if (!stateObj) return;
+    this._subscribeHourNow(stateObj);
     const type = this._forecastType(stateObj);
     const key = `${config.entity}|${type}`;
     if (key === this._subscriptionKey) return;
@@ -1815,11 +1819,54 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     });
   }
 
+  /**
+   * When the entity reports no current condition (NWS stations that measure
+   * only temperature and wind), follow its hourly forecast for the hour under
+   * way. A day or 12-hour period says "rainy" if rain falls at any point in it,
+   * which says nothing about the sky right now.
+   */
+  _subscribeHourNow(stateObj) {
+    const config = this._config;
+    const features = Number(stateObj.attributes?.supported_features) || 0;
+    const needed =
+      ["unknown", "unavailable"].includes(stateObj.state) &&
+      (features & FEATURE_FORECAST_HOURLY) !== 0 &&
+      this._forecastType(stateObj) !== "hourly";
+    const key = needed ? config.entity : null;
+    if (key === this._hourSubscriptionKey) return;
+
+    this._unsubscribeHourNow();
+    if (!key) return;
+    this._hourSubscriptionKey = key;
+    this._hourSubscription = Promise.resolve(
+      this._hass.connection.subscribeMessage(
+        (event) => {
+          if (this._hourSubscriptionKey !== key) return;
+          this._hourNow = event?.forecast || [];
+          this._render();
+        },
+        { type: "weather/subscribe_forecast", forecast_type: "hourly", entity_id: config.entity },
+      ),
+    ).catch((error) => {
+      console.error("kennedyish-weather-card: hourly forecast subscription failed", error);
+      return null;
+    });
+  }
+
+  _unsubscribeHourNow() {
+    const subscription = this._hourSubscription;
+    this._hourSubscription = null;
+    this._hourSubscriptionKey = null;
+    this._hourNow = null;
+    subscription?.then((unsubscribe) => unsubscribe?.()).catch(() => {});
+  }
+
   _unsubscribe() {
     const subscription = this._subscription;
     this._subscription = null;
     this._subscriptionKey = null;
     subscription?.then((unsubscribe) => unsubscribe?.()).catch(() => {});
+    this._unsubscribeHourNow();
   }
 
   _conditionLabel(condition) {
@@ -1904,7 +1951,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const pm25Reading = reading(config.pm25_sensor);
     // Weather providers can keep yesterday's clear-night state after sunrise.
     // Use the same local day/night calculation for the label and sky artwork.
-    const forecasts = this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast;
+    // With no current condition, the hour under way says more than the day.
+    const forecasts = this._hourNow?.length ? this._hourNow : this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast;
     const condition = normalizeCondition(refineCondition(currentCondition(stateObj.state, forecasts, now), {
       rainRate: rain ? toInchesPerHour(rain) : null,
       windSpeed: wind ? toMph(wind) : null,

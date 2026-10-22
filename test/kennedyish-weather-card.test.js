@@ -177,6 +177,48 @@ test("asks for the twice-daily forecast when the entity has no daily one, like N
   assert.equal(makeCard({ hourly_forecast: true })._forecastType({ attributes: { supported_features: 4 } }), "unsupported");
 });
 
+test("with no current condition, follows the hour under way, not a rainy 12-hour period", async () => {
+  // Everstoke, 2026-10-20 6:17 AM: NWS reports no condition; the day period
+  // is "rainy" (22%, showers after 2 PM) while the hour under way is cloudy.
+  const card = makeCard({}, {
+    condition: "unknown",
+    features: 6,
+    now: "2026-10-20T13:17:00Z",
+    forecast: [
+      { datetime: "2026-10-20T13:00:00Z", condition: "rainy", temperature: 68, precipitation_probability: 22, is_daytime: true },
+      { datetime: "2026-10-21T01:00:00Z", condition: "rainy", temperature: 34, precipitation_probability: 32, is_daytime: false },
+    ],
+  });
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Rainy<\/span>/, "without the hourly forecast, the period decides");
+
+  const subscriptions = [];
+  Object.defineProperty(card, "isConnected", { value: true });
+  card._subscriptionKey = "weather.forecast_home|twice_daily";
+  card.hass = {
+    ...card._hass,
+    connection: {
+      subscribeMessage: async (callback, message) => {
+        subscriptions.push(message.forecast_type);
+        if (message.forecast_type === "hourly") {
+          callback({ forecast: [
+            { datetime: "2026-10-20T13:00:00Z", condition: "cloudy" },
+            { datetime: "2026-10-20T21:00:00Z", condition: "rainy" },
+          ] });
+        }
+        return () => {};
+      },
+    },
+  };
+  await Promise.resolve();
+  assert.deepEqual(subscriptions, ["hourly"]);
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Cloudy<\/span>/);
+
+  // Once the entity reports a condition again, the hourly forecast goes.
+  card.hass = { ...card._hass, states: { ...card._hass.states, "weather.forecast_home": { ...card._hass.states["weather.forecast_home"], state: "partlycloudy" } } };
+  assert.equal(card._hourNow, null);
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Partly cloudy<\/span>/);
+});
+
 test("falls back to the forecast period under way when the station reports no condition", () => {
   const periods = [
     { datetime: "2026-10-13T13:00:00Z", condition: "sunny" },

@@ -494,6 +494,38 @@ const RAIN_CHANCE_MIN = 5;
 // Smaller amounts give way to the chance, when there is one: a tenth of an inch, in each unit.
 const RAIN_AMOUNT_MIN = { in: 0.1, cm: 0.25, mm: 2.5 };
 const RECORDS_REFRESH_MS = 30 * 60_000;
+/** The station's rain totals, in the order they lead the records row. */
+const RAIN_RECORDS = [
+  ["rain_today_sensor", "Rain today"],
+  ["rain_event_sensor", "Rain event"],
+  ["rain_year_sensor", "Rain YTD"],
+];
+
+const RECORDS_STORAGE_PREFIX = "kennedyish-weather-card:records:";
+const recordsCache = new Map();
+
+/** The last monthly statistics fetched for a sensor, kept in the browser so a reload shows the records at once. */
+function cachedRecords(key) {
+  if (!recordsCache.has(key)) {
+    try {
+      const stored = JSON.parse(globalThis.localStorage?.getItem(RECORDS_STORAGE_PREFIX + key) ?? "null");
+      if (Array.isArray(stored)) recordsCache.set(key, stored);
+    } catch {
+      // No storage (private browsing, blocked site data): the records wait for the fetch.
+    }
+  }
+  return recordsCache.get(key);
+}
+
+function storeRecords(key, stats) {
+  const rows = stats.map(({ start, min, max }) => ({ start, min, max }));
+  recordsCache.set(key, rows);
+  try {
+    globalThis.localStorage?.setItem(RECORDS_STORAGE_PREFIX + key, JSON.stringify(rows));
+  } catch {
+    // Kept in memory for this page only.
+  }
+}
 
 /**
  * The highest and lowest temperatures in Home Assistant's monthly statistics:
@@ -1513,6 +1545,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
             { name: "apparent_sensor", selector: sensor },
             { name: "aqi_sensor", selector: sensor },
             { name: "rain_rate_sensor", selector: sensor },
+            { name: "rain_today_sensor", selector: sensor },
+            { name: "rain_event_sensor", selector: sensor },
             { name: "rain_year_sensor", selector: sensor },
             { name: "wind_speed_sensor", selector: sensor },
             { name: "wind_gust_sensor", selector: sensor },
@@ -1560,6 +1594,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           apparent_sensor: "Feels-like sensor",
           aqi_sensor: "Air quality index sensor",
           rain_rate_sensor: "Rain rate sensor",
+          rain_today_sensor: "Daily rain sensor",
+          rain_event_sensor: "Event rain sensor",
           rain_year_sensor: "Yearly rain sensor",
           wind_speed_sensor: "Wind speed sensor",
           wind_gust_sensor: "Wind gust sensor",
@@ -1577,8 +1613,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           temperature_sensor: "Overrides the weather entity's current temperature",
           humidity_sensor: "Overrides the weather entity's humidity",
           rain_rate_sensor: "A station's rain gauge; corrects rain in the current condition",
-          rain_year_sensor: "Rain so far this year, for the records row",
-          show_records: "This year's rain, high, and low, from the station's sensors and Home Assistant's history",
+          rain_today_sensor: "The rain sensors lead the records row",
+          show_records: "Rain today, this storm, and this year, then this year's high and low from Home Assistant's history",
           wind_speed_sensor: "A station's sustained wind; shows windy at 20 mph or more",
           show_alerts: "National Weather Service alerts (US only); on by default",
           pm25_sensor: "Fine particles in µg/m³; bad air shows as an alert bar",
@@ -1736,7 +1772,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         units: { temperature: "°C" },
       });
       if (key !== this._recordsKey) return;
-      this._recordStats = result?.[key] || [];
+      storeRecords(key, result?.[key] || []);
+      this._recordStats = recordsCache.get(key);
+      this._recordStatsKey = key;
       this._render();
     } catch (error) {
       console.warn("kennedyish-weather-card: temperature history unavailable", error);
@@ -1803,6 +1841,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       states[config.apparent_sensor],
       states[config.aqi_sensor],
       states[config.rain_rate_sensor],
+      states[config.rain_today_sensor],
+      states[config.rain_event_sensor],
       states[config.rain_year_sensor],
       states[config.wind_speed_sensor],
       states[config.wind_gust_sensor],
@@ -2088,7 +2128,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       : "";
 
     const records = config.show_records
-      ? this._renderRecords({ now, timeZone, displayUnit, rain: reading(config.rain_year_sensor), live: this._sensorTemperature(config.temperature_sensor, displayUnit) })
+      ? this._renderRecords({ now, timeZone, displayUnit, rain: RAIN_RECORDS.map(([key, label]) => [label, reading(config[key])]), live: this._sensorTemperature(config.temperature_sensor, displayUnit) })
       : "";
 
     const alerts = config.show_alerts === false ? [] : activeAlerts(this._alerts, now);
@@ -2111,37 +2151,43 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     this._measureSky();
   }
 
-  /** This year's rain, high, and low under the forecast; the all-time high and low join once the history goes back further. */
+  /** Rain today, this storm, and this year, then this year's high and low; the all-time high and low join once the history goes back further. */
   _renderRecords({ now, timeZone, displayUnit, rain, live }) {
-    const { year, ever } = temperatureRecords(this._recordStats, { now, timeZone });
+    const key = this._config.temperature_sensor;
+    const stats = this._recordStatsKey === key ? this._recordStats : cachedRecords(key);
+    // Until the history arrives, the high and low hold their place blank rather than show the reading right now.
+    const pending = stats === undefined;
+    const { year, ever } = temperatureRecords(stats, { now, timeZone });
     const shown = (celsius) => (celsius === undefined ? null : convertTemperature(celsius, "°C", displayUnit));
-    // Statistics are compiled hourly, so the reading right now can beat them.
-    const extreme = (pick, recorded) => {
-      const values = [shown(recorded), live].filter((value) => value !== null);
-      return values.length ? pick(...values) : null;
-    };
-    const cell = (label, text, unit, color, note) => `
-      <div class="record">
+    // Statistics are compiled hourly, so the reading right now can beat them, but it never stands in for them.
+    const extreme = (pick, recorded) => (recorded === undefined ? null : live === null ? shown(recorded) : pick(shown(recorded), live));
+    const cell = (label, text, unit, color, note, extra = "") => `
+      <div class="record${extra}"${extra ? ' aria-hidden="true"' : ""}>
         <div class="time-line"><strong class="time"${color ? ` style="color: ${color}"` : ""}>${escapeHtml(text)}</strong>${unit ? `<span class="unit">${escapeHtml(unit)}</span>` : ""}</div>
         <span class="label">${label}</span>${note ? `<span class="record-ever">${escapeHtml(note)}</span>` : ""}
       </div>`;
     const temperature = (label, value, everValue) => cell(
       label,
-      value === null ? "—" : `${formatNumber(value)}°`,
+      pending ? "00°" : value === null ? "—" : `${formatNumber(value)}°`,
       "",
       null,
       ever ? `All-time ${formatNumber(shown(everValue))}°` : "",
+      pending ? " pending" : "",
     );
-    const cells = [];
-    if (rain) {
-      const [amount, unit = ""] = formatPrecipitation(rain.value, rain.unit).split(" ");
-      cells.push(cell("Rain YTD", amount, unit, "#9db8ff"));
-    }
-    if (this._config.temperature_sensor) {
-      cells.push(temperature("High YTD", extreme(Math.max, year?.high), ever ? Math.max(ever.high, convertTemperature(live, displayUnit, "°C") ?? -Infinity) : null));
-      cells.push(temperature("Low YTD", extreme(Math.min, year?.low), ever ? Math.min(ever.low, convertTemperature(live, displayUnit, "°C") ?? Infinity) : null));
-    }
-    return cells.length ? `<div class="records" style="--count: ${cells.length}">${cells.join("")}</div>` : "";
+    const rainCells = rain
+      .filter(([, total]) => total)
+      .map(([label, total]) => {
+        const [amount, unit = ""] = formatPrecipitation(total.value, total.unit).split(" ");
+        return cell(label, amount, unit, "#9db8ff");
+      });
+    const temperatureCells = this._config.temperature_sensor
+      ? [
+          temperature("High YTD", extreme(Math.max, year?.high), ever ? Math.max(ever.high, convertTemperature(live, displayUnit, "°C") ?? -Infinity) : null),
+          temperature("Low YTD", extreme(Math.min, year?.low), ever ? Math.min(ever.low, convertTemperature(live, displayUnit, "°C") ?? Infinity) : null),
+        ]
+      : [];
+    const groups = [rainCells, temperatureCells].filter((group) => group.length).map((group) => group.join(""));
+    return groups.length ? `<div class="records">${groups.join('<span class="records-rule" aria-hidden="true"></span>')}</div>` : "";
   }
 
   /** A ribbon for the first day of a season, with the moment of the equinox or solstice. */
@@ -2710,13 +2756,15 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .sun-time .unit { color: ${mutedColor}; font-size: 10px; }
       .sun-time .label { color: ${mutedColor}; font-size: 9.5px; }
       .daylight-change { color: ${mutedColor}; font-size: 9.5px; letter-spacing: .18em; line-height: 1.5; text-align: center; }
-      .records { display: grid; grid-template-columns: repeat(var(--count), minmax(0, 1fr)); column-gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
+      .records { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
       .footer > .records:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
       .record { display: flex; flex-direction: column; align-items: center; gap: 5px; white-space: nowrap; }
       .record:first-child { align-items: flex-start; }
       .record:last-child:not(:first-child) { align-items: flex-end; }
       .record .unit { color: ${mutedColor}; font-size: 10px; }
       .record .label { color: ${mutedColor}; font-size: 9.5px; }
+      .record.pending { visibility: hidden; }
+      .records-rule { flex: none; width: 1px; background: rgba(251, 243, 226, .18); }
       .record-ever { margin-top: -1px; color: ${mutedColor}; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; opacity: .8; }
       .forecast + .sun-block, .footer-note + .sun-block { margin-top: 16px; }
       .forecast + .sun-block.divided, .footer-note + .sun-block.divided, .records + .sun-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
@@ -2772,6 +2820,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         .label { font-size: 9.5px; letter-spacing: .16em; }
         .time { font-size: clamp(17px, 5cqw, 21px); }
         .sun-time .label, .record .label { font-size: 8.5px; letter-spacing: .14em; }
+        .records { gap: 6px; }
+        .record .label { letter-spacing: .08em; }
         .daylight-change { font-size: 8.5px; letter-spacing: .14em; }
         .forecast { column-gap: 8px; }
       }
@@ -2786,6 +2836,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         .day { font-size: 9.5px; letter-spacing: .14em; }
         .low, .high { font-size: 13px; }
         .daylight-change { letter-spacing: .1em; }
+        .records { gap: 4px; }
+        .record .label { font-size: 7.5px; letter-spacing: .04em; }
+        .record .unit { font-size: 9px; }
       }
     </style>`;
   }

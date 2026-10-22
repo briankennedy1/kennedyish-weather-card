@@ -32,7 +32,7 @@ It is one JavaScript file with no build step and no dependencies. It works anywh
 - **The year.** A bar of the whole year in season colors, with a countdown to the next season. Point at or drag along it to see any day. The seasons flip in the southern hemisphere.
 - **Season celebrations.** On the first day of each season, the footer takes on the season's colors and a ribbon gives the exact time of the equinox or solstice. Blossoms, starbursts, leaves, or snowflakes drift through the sky.
 - **Weather alerts (US).** National Weather Service alerts appear as a band colored by severity. Tap it to read the full alert.
-- **Your own weather station.** Point the card at your station's sensors and its readings take over. Rain in the gauge becomes drizzle, rain, or a downpour, wind becomes breezy or windy, and smoky air turns the sky amber, with an air quality band when the air turns unhealthy. Turn on records for this year's rain, high, and low under the forecast.
+- **Your own weather station.** Point the card at your station's sensors and its readings take over. Rain in the gauge becomes drizzle, rain, or a downpour, wind becomes breezy or windy, and smoky air turns the sky amber, with an air quality band when the air turns unhealthy. Turn on records for rain today, this storm, and this year, and this year's high and low, under the forecast.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/celebration.png" width="40%" alt="The first day of fall: a rust-colored footer with a ribbon announcing the equinox, and leaves drifting through the sky">
@@ -128,6 +128,8 @@ entity: weather.forecast_home
 temperature_sensor: sensor.my_station_temperature
 humidity_sensor: sensor.my_station_humidity
 rain_rate_sensor: sensor.my_station_rain_rate
+rain_today_sensor: sensor.my_station_daily_rain
+rain_event_sensor: sensor.my_station_event_rain
 rain_year_sensor: sensor.my_station_yearly_rain
 show_records: true
 wind_speed_sensor: sensor.my_station_wind_speed
@@ -140,7 +142,7 @@ The station takes over the current temperature. The weather service still decide
 - **Rain:** under 0.03 in/h shows as drizzle, and 0.3 in/h or more as pouring. A dry gauge turns a forecast of rain into cloudy.
 - **Wind:** 12 mph turns a clear sky breezy. 20 mph, or gusts of 30, turns it windy.
 - **Air:** once PM2.5 brings the AQI to 101, a clear or cloudy sky turns smoky, and an air quality band appears with the EPA's health guidance.
-- **Records:** with `show_records: true`, a row under the forecast shows this year's rain from the yearly rain sensor, and this year's high and low from Home Assistant's history of the temperature sensor. Once that history goes back past January 1, the all-time high and low show under them.
+- **Records:** with `show_records: true`, a row under the forecast shows rain today, this storm, and this year from the daily, event, and yearly rain sensors, then, past a divider, this year's high and low from Home Assistant's history of the temperature sensor. Once that history goes back past January 1, the all-time high and low show under them.
 
 ### All options
 
@@ -168,6 +170,8 @@ The station takes over the current temperature. The weather service still decide
 | `humidity_sensor` | — | A sensor for humidity |
 | `apparent_sensor` | — | A sensor for the "feels like" temperature |
 | `rain_rate_sensor` | — | A station's rain rate, in in/h or mm/h |
+| `rain_today_sensor` | — | A station's rain so far today, for the records row |
+| `rain_event_sensor` | — | A station's rain so far this storm, for the records row |
 | `rain_year_sensor` | — | A station's rain so far this year, for the records row |
 | `wind_speed_sensor` | — | A station's sustained wind speed |
 | `wind_gust_sensor` | — | A station's wind gust speed |
@@ -175,7 +179,7 @@ The station takes over the current temperature. The weather service still decide
 | `aqi_sensor` | — | An air quality index sensor, shown as a chip |
 | `aqi_alert_threshold` | `101` | The AQI at which the air quality band appears |
 | `show_alerts` | `true` | National Weather Service alerts (US only) |
-| `show_records` | `false` | A row of this year's rain, high, and low, with all-time highs and lows when the history allows |
+| `show_records` | `false` | A row of rain today, this storm, and this year, then this year's high and low, with all-time highs and lows when the history allows |
 | `show_rain_chance` | `true` | NWS chance of rain in the forecast rows (US only) |
 | `background`, `text_color`, `muted_color`, `accent_color`, `sun_color` | Deep teal and cream | Footer and sun colors, as any CSS color |
 

@@ -327,19 +327,22 @@ test("renders the station's condition and temperature over the forecast service'
   assert.match(html, /<svg class="sky-scene scene-rainy"/);
 });
 
-test("shows this year's rain, high, and low in a records row, and all-time ones once the history allows", () => {
-  const card = makeCard({ show_records: true, temperature_sensor: "sensor.station_temp", rain_year_sensor: "sensor.rain_year" });
+test("shows rain today, this storm, and this year, then this year's high and low, and all-time ones once the history allows", () => {
+  const card = makeCard({ show_records: true, temperature_sensor: "sensor.station_temp", rain_today_sensor: "sensor.rain_day", rain_event_sensor: "sensor.rain_event", rain_year_sensor: "sensor.rain_year" });
   card._hass = {
     ...card._hass,
     states: {
       ...card._hass.states,
       "sensor.station_temp": { state: "57.7", attributes: { unit_of_measurement: "°F" } },
+      "sensor.rain_day": { state: "0.08", attributes: { unit_of_measurement: "in" } },
+      "sensor.rain_event": { state: "0", attributes: { unit_of_measurement: "in" } },
       "sensor.rain_year": { state: "32.78", attributes: { unit_of_measurement: "in" } },
     },
   };
   const month = (start, min, max) => ({ start: Date.parse(start), min, max });
   const records = (stats) => {
     card._recordStats = stats;
+    card._recordStatsKey = stats === undefined ? undefined : "sensor.station_temp";
     card._render();
     const html = card.shadowRoot.innerHTML;
     const row = html.slice(html.indexOf('<div class="records"'), html.indexOf('<div class="sun-block'));
@@ -354,18 +357,39 @@ test("shows this year's rain, high, and low in a records row, and all-time ones 
   // Local months in Los Angeles: March and June 2026 this year, December 2025 before it.
   const thisYear = [month("2026-03-01T08:00:00Z", 8.6, 32.9), month("2026-06-01T07:00:00Z", 10.6, 38.8)];
   let row = records(thisYear);
-  assert.deepEqual(row.values, ["32.8", "102°", "47°"]);
-  assert.deepEqual(row.labels, ["Rain YTD", "High YTD", "Low YTD"]);
+  assert.deepEqual(row.values, [".08", "0", "32.8", "102°", "47°"]);
+  assert.deepEqual(row.labels, ["Rain today", "Rain event", "Rain YTD", "High YTD", "Low YTD"]);
   assert.deepEqual(row.ever, []);
+  // A rule divides the rain from the temperatures.
+  assert.match(row.html, /Rain YTD<\/span>\s*<\/div><span class="records-rule"/);
   assert.ok(row.html.indexOf('class="forecast"') < row.html.indexOf('class="records"'));
 
   row = records([month("2025-12-01T08:00:00Z", -1, 15), ...thisYear]);
-  assert.deepEqual(row.values, ["32.8", "102°", "47°"]);
+  assert.deepEqual(row.values, [".08", "0", "32.8", "102°", "47°"]);
   assert.deepEqual(row.ever, ["All-time 102°", "All-time 30°"]);
 
-  // Before the history loads, the reading right now stands in for both.
-  assert.deepEqual(records(undefined).values, ["32.8", "58°", "58°"]);
+  // Before the history loads, the high and low hold their place blank; the reading right now never stands in.
+  row = records(undefined);
+  assert.equal(row.html.match(/class="record pending"/g)?.length, 2);
+  assert.deepEqual(row.values.slice(0, 3), [".08", "0", "32.8"]);
+  assert.doesNotMatch(row.html, /58°<\/strong>/);
+  // A history with nothing this year shows a dash, not the reading right now.
+  assert.deepEqual(records([month("2025-12-01T08:00:00Z", -1, 15)]).values.slice(3), ["—", "—"]);
   assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="records"/);
+});
+
+test("a card that loads after the records were fetched shows them at once", async () => {
+  const stats = { "sensor.cached_temp": [{ start: Date.parse("2026-06-01T07:00:00Z"), min: 10.6, max: 38.8 }] };
+  const first = makeCard({ show_records: true, temperature_sensor: "sensor.cached_temp" });
+  Object.defineProperty(first, "isConnected", { value: true });
+  first.hass = { ...first._hass, connection: { sendMessagePromise: async () => stats, subscribeMessage: async () => () => {} } };
+  await new Promise((resolve) => setTimeout(resolve));
+  assert.match(first.shadowRoot.innerHTML, /102°<\/strong>/);
+
+  // A new card for the same sensor, before any fetch of its own.
+  const second = makeCard({ show_records: true, temperature_sensor: "sensor.cached_temp" });
+  assert.match(second.shadowRoot.innerHTML, /102°<\/strong>/);
+  assert.doesNotMatch(second.shadowRoot.innerHTML, /class="record pending"/);
 });
 
 test("keeps only alerts in effect, one per event, most severe first", () => {

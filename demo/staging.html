@@ -232,8 +232,6 @@
             "sensor.my_station_temperature": { state: state.temp, attributes: { unit_of_measurement: "°F" } },
             "sensor.my_station_humidity": { state: String(STATION.humidity), attributes: { unit_of_measurement: "%" } },
             "sensor.my_station_precipitation_intensity": { state: state.rain, attributes: { unit_of_measurement: "in/h" } },
-            "sensor.my_station_daily_rain": { state: "0.08", attributes: { unit_of_measurement: "in" } },
-            "sensor.my_station_event_rain": { state: "0.08", attributes: { unit_of_measurement: "in" } },
             "sensor.my_station_yearly_rain": { state: "32.78", attributes: { unit_of_measurement: "in" } },
             "sensor.my_station_wind_average_10_minutes": { state: state.wind, attributes: { unit_of_measurement: "mph" } },
             "sensor.my_station_wind_gust": { state: String(Math.round(Number(state.wind) * 1.4)), attributes: { unit_of_measurement: "mph" } },
@@ -242,6 +240,11 @@
           config: { time_zone: TZ, unit_system: { temperature: "°F" }, latitude: 37.7749, longitude: -122.4194, country: "US" },
           locale: { language: "en", time_format: "12" },
           connection: {
+            // The home station's monthly highs and lows in °C, March to October 2026.
+            sendMessagePromise: async ({ statistic_ids: [id] }) => ({
+              [id]: [[8.6, 32.9], [6.0, 26.6], [9.3, 33.1], [10.6, 38.8], [11.8, 35.7], [11.9, 35.2], [11.5, 38.8], [7.5, 37.1]]
+                .map(([min, max], index) => ({ start: Date.UTC(2026, 2 + index, 1, 8), min, max })),
+            }),
             subscribeMessage: async (callback) => {
               setTimeout(() => callback({ type: "daily", forecast }));
               return () => {};
@@ -257,9 +260,8 @@
         temperature_sensor: "sensor.my_station_temperature",
         humidity_sensor: "sensor.my_station_humidity",
         rain_rate_sensor: "sensor.my_station_precipitation_intensity",
-        rain_today_sensor: "sensor.my_station_daily_rain",
-        rain_event_sensor: "sensor.my_station_event_rain",
         rain_year_sensor: "sensor.my_station_yearly_rain",
+        show_records: true,
         wind_speed_sensor: "sensor.my_station_wind_average_10_minutes",
         wind_gust_sensor: "sensor.my_station_wind_gust",
         pm25_sensor: "sensor.my_station_pm2_5",

@@ -327,30 +327,45 @@ test("renders the station's condition and temperature over the forecast service'
   assert.match(html, /<svg class="sky-scene scene-rainy"/);
 });
 
-test("shows the station's rain totals in a row under the forecast", () => {
-  const card = makeCard({ rain_today_sensor: "sensor.rain_day", rain_event_sensor: "sensor.rain_event", rain_year_sensor: "sensor.rain_year" });
+test("shows this year's rain, high, and low in a records row, and all-time ones once the history allows", () => {
+  const card = makeCard({ show_records: true, temperature_sensor: "sensor.station_temp", rain_year_sensor: "sensor.rain_year" });
   card._hass = {
     ...card._hass,
     states: {
       ...card._hass.states,
-      "sensor.rain_day": { state: "0.08", attributes: { unit_of_measurement: "in" } },
-      "sensor.rain_event": { state: "0", attributes: { unit_of_measurement: "in" } },
+      "sensor.station_temp": { state: "57.7", attributes: { unit_of_measurement: "°F" } },
       "sensor.rain_year": { state: "32.78", attributes: { unit_of_measurement: "in" } },
     },
   };
-  card._render();
-  const html = card.shadowRoot.innerHTML;
-  const totals = html.slice(html.indexOf('<div class="rain-totals"'), html.indexOf('<div class="sun-block'));
-  assert.match(totals, /--count: 3/);
-  assert.deepEqual([...totals.matchAll(/<strong class="time">([^<]+)<\/strong><span class="unit">in<\/span>/g)].map((m) => m[1]), [".08", "0", "32.8"]);
-  assert.deepEqual([...totals.matchAll(/<span class="label">([^<]+)<\/span>/g)].map((m) => m[1]), ["Today", "Event", "Year"]);
-  assert.ok(html.indexOf('class="forecast"') < html.indexOf('class="rain-totals"'));
+  const month = (start, min, max) => ({ start: Date.parse(start), min, max });
+  const records = (stats) => {
+    card._recordStats = stats;
+    card._render();
+    const html = card.shadowRoot.innerHTML;
+    const row = html.slice(html.indexOf('<div class="records"'), html.indexOf('<div class="sun-block'));
+    return {
+      values: [...row.matchAll(/<strong class="time"[^>]*>([^<]+)<\/strong>/g)].map((m) => m[1]),
+      labels: [...row.matchAll(/<span class="label">([^<]+)<\/span>/g)].map((m) => m[1]),
+      ever: [...row.matchAll(/<span class="record-ever">([^<]+)<\/span>/g)].map((m) => m[1]),
+      html,
+    };
+  };
 
-  // A sensor that is unavailable drops out; with none configured, there is no row.
-  card._hass.states["sensor.rain_event"] = { state: "unavailable", attributes: {} };
-  card._render();
-  assert.match(card.shadowRoot.innerHTML, /--count: 2/);
-  assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="rain-totals"/);
+  // Local months in Los Angeles: March and June 2026 this year, December 2025 before it.
+  const thisYear = [month("2026-03-01T08:00:00Z", 8.6, 32.9), month("2026-06-01T07:00:00Z", 10.6, 38.8)];
+  let row = records(thisYear);
+  assert.deepEqual(row.values, ["32.8", "102°", "47°"]);
+  assert.deepEqual(row.labels, ["Rain YTD", "High YTD", "Low YTD"]);
+  assert.deepEqual(row.ever, []);
+  assert.ok(row.html.indexOf('class="forecast"') < row.html.indexOf('class="records"'));
+
+  row = records([month("2025-12-01T08:00:00Z", -1, 15), ...thisYear]);
+  assert.deepEqual(row.values, ["32.8", "102°", "47°"]);
+  assert.deepEqual(row.ever, ["All-time 102°", "All-time 30°"]);
+
+  // Before the history loads, the reading right now stands in for both.
+  assert.deepEqual(records(undefined).values, ["32.8", "58°", "58°"]);
+  assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="records"/);
 });
 
 test("keeps only alerts in effect, one per event, most severe first", () => {

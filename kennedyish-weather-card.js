@@ -493,12 +493,19 @@ const RAIN_CHANCE_REFRESH_MS = 30 * 60_000;
 const RAIN_CHANCE_MIN = 5;
 // Smaller amounts give way to the chance, when there is one: a tenth of an inch, in each unit.
 const RAIN_AMOUNT_MIN = { in: 0.1, cm: 0.25, mm: 2.5 };
-/** A station's rain totals, in the order they show under the forecast. */
-const RAIN_TOTALS = [
-  ["rain_today_sensor", "Today"],
-  ["rain_event_sensor", "Event"],
-  ["rain_year_sensor", "Year"],
-];
+const RECORDS_REFRESH_MS = 30 * 60_000;
+
+/**
+ * The highest and lowest temperatures in Home Assistant's monthly statistics:
+ * this local year's, and all of them once the history reaches back past it.
+ */
+export function temperatureRecords(stats, { now, timeZone }) {
+  const rows = (stats || []).filter((row) => isNumber(row.max) && isNumber(row.min));
+  const year = isoDay(now, timeZone).slice(0, 4);
+  const thisYear = rows.filter((row) => isoDay(new Date(row.start), timeZone).slice(0, 4) === year);
+  const span = (list) => (list.length ? { high: Math.max(...list.map((row) => row.max)), low: Math.min(...list.map((row) => row.min)) } : null);
+  return { year: span(thisYear), ever: rows.length > thisYear.length ? span(rows) : null };
+}
 
 /** An expected precipitation amount, like ".25 in" or "6 mm". */
 export function formatPrecipitation(amount, unit = "mm") {
@@ -1506,8 +1513,6 @@ export class KennedyishWeatherCard extends HTMLElementBase {
             { name: "apparent_sensor", selector: sensor },
             { name: "aqi_sensor", selector: sensor },
             { name: "rain_rate_sensor", selector: sensor },
-            { name: "rain_today_sensor", selector: sensor },
-            { name: "rain_event_sensor", selector: sensor },
             { name: "rain_year_sensor", selector: sensor },
             { name: "wind_speed_sensor", selector: sensor },
             { name: "wind_gust_sensor", selector: sensor },
@@ -1517,6 +1522,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         },
         { name: "show_alerts", selector: { boolean: {} } },
         { name: "show_rain_chance", selector: { boolean: {} } },
+        { name: "show_records", selector: { boolean: {} } },
         {
           type: "expandable",
           name: "",
@@ -1554,14 +1560,13 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           apparent_sensor: "Feels-like sensor",
           aqi_sensor: "Air quality index sensor",
           rain_rate_sensor: "Rain rate sensor",
-          rain_today_sensor: "Daily rain sensor",
-          rain_event_sensor: "Event rain sensor",
           rain_year_sensor: "Yearly rain sensor",
           wind_speed_sensor: "Wind speed sensor",
           wind_gust_sensor: "Wind gust sensor",
           pm25_sensor: "PM2.5 sensor",
           aqi_alert_threshold: "Air quality alert from AQI",
           show_rain_chance: "Show chance of rain",
+          show_records: "Show records",
           show_alerts: "Show weather alerts",
           latitude: "Latitude",
           longitude: "Longitude",
@@ -1572,7 +1577,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           temperature_sensor: "Overrides the weather entity's current temperature",
           humidity_sensor: "Overrides the weather entity's humidity",
           rain_rate_sensor: "A station's rain gauge; corrects rain in the current condition",
-          rain_today_sensor: "Rain totals show in a row under the forecast",
+          rain_year_sensor: "Rain so far this year, for the records row",
+          show_records: "This year's rain, high, and low, from the station's sensors and Home Assistant's history",
           wind_speed_sensor: "A station's sustained wind; shows windy at 20 mph or more",
           show_alerts: "National Weather Service alerts (US only); on by default",
           pm25_sensor: "Fine particles in µg/m³; bad air shows as an alert bar",
@@ -1595,6 +1601,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     this._subscribe();
     this._refreshAlerts();
     this._refreshRainChances();
+    this._refreshRecords();
     const watched = this._watchedStates();
     if (this._watched && watched.every((item, index) => item === this._watched[index])) return;
     this._watched = watched;
@@ -1648,6 +1655,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     clearInterval(this._rainTimer);
     this._rainTimer = setInterval(() => this._refreshRainChances(true), RAIN_CHANCE_REFRESH_MS);
     this._refreshRainChances();
+    clearInterval(this._recordsTimer);
+    this._recordsTimer = setInterval(() => this._refreshRecords(true), RECORDS_REFRESH_MS);
+    this._refreshRecords();
     if (globalThis.ResizeObserver && !this._resizer) this._resizer = new ResizeObserver(() => this._measureSky());
     this._resizer?.observe(this);
     this._render();
@@ -1681,6 +1691,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     this._alertTimer = null;
     clearInterval(this._rainTimer);
     this._rainTimer = null;
+    clearInterval(this._recordsTimer);
+    this._recordsTimer = null;
     this._unsubscribe();
   }
 
@@ -1704,6 +1716,30 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       this._render();
     } catch (error) {
       console.warn("kennedyish-weather-card: NWS rain chances unavailable", error);
+    }
+  }
+
+  /** Fetch the temperature sensor's monthly highs and lows once, or again when `force`d by the refresh timer. */
+  async _refreshRecords(force = false) {
+    const config = this._config;
+    if (!config?.show_records || !config.temperature_sensor || !this.isConnected || !this._hass?.connection) return;
+    const key = config.temperature_sensor;
+    if (!force && key === this._recordsKey) return;
+    this._recordsKey = key;
+    try {
+      const result = await this._hass.connection.sendMessagePromise({
+        type: "recorder/statistics_during_period",
+        start_time: "2000-01-01T00:00:00Z",
+        statistic_ids: [key],
+        period: "month",
+        types: ["max", "min"],
+        units: { temperature: "°C" },
+      });
+      if (key !== this._recordsKey) return;
+      this._recordStats = result?.[key] || [];
+      this._render();
+    } catch (error) {
+      console.warn("kennedyish-weather-card: temperature history unavailable", error);
     }
   }
 
@@ -1734,8 +1770,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
   getCardSize() {
     const sky = this._config?.hide_today_section ? 0 : 4;
     const forecast = this._config?.hide_forecast_section ? 1 : 1 + Math.ceil((this._config?.forecast_rows ?? 5) / 2);
-    const rainTotals = RAIN_TOTALS.some(([key]) => this._config?.[key]) ? 1 : 0;
-    return sky + forecast + rainTotals;
+    return sky + forecast + (this._config?.show_records ? 1 : 0);
   }
 
   getGridOptions() {
@@ -1768,8 +1803,6 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       states[config.apparent_sensor],
       states[config.aqi_sensor],
       states[config.rain_rate_sensor],
-      states[config.rain_today_sensor],
-      states[config.rain_event_sensor],
       states[config.rain_year_sensor],
       states[config.wind_speed_sensor],
       states[config.wind_gust_sensor],
@@ -2054,18 +2087,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         </div>`
       : "";
 
-    const rainTotals = RAIN_TOTALS.map(([key, label]) => ({ label, total: reading(config[key]) })).filter(({ total }) => total);
-    const rainBlock = rainTotals.length
-      ? `<div class="rain-totals" style="--count: ${rainTotals.length}">${rainTotals
-          .map(({ label, total }) => {
-            const [amount, unit = ""] = formatPrecipitation(total.value, total.unit).split(" ");
-            return `
-              <div class="rain-total">
-                <div class="time-line"><strong class="time">${escapeHtml(amount)}</strong>${unit ? `<span class="unit">${escapeHtml(unit)}</span>` : ""}</div>
-                <span class="label">${label}</span>
-              </div>`;
-          })
-          .join("")}</div>`
+    const records = config.show_records
+      ? this._renderRecords({ now, timeZone, displayUnit, rain: reading(config.rain_year_sensor), live: this._sensorTemperature(config.temperature_sensor, displayUnit) })
       : "";
 
     const alerts = config.show_alerts === false ? [] : activeAlerts(this._alerts, now);
@@ -2080,12 +2103,45 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       <ha-card aria-label="${escapeHtml(aria)}" class="${celebration ? `celebrate celebrate-${celebration.season}` : ""}">
         <div class="content">
           ${sky}
-          ${alertBand || banner || forecast || rainBlock || sunTimes || year ? `<div class="footer">${alertBand}${banner}${forecast}${rainBlock}${sunTimes ? `<div class="sun-block${solar.isDay ? "" : " divided"}">${sunTimes}</div>` : ""}${year}</div>` : ""}
+          ${alertBand || banner || forecast || records || sunTimes || year ? `<div class="footer">${alertBand}${banner}${forecast}${records}${sunTimes ? `<div class="sun-block${solar.isDay ? "" : " divided"}">${sunTimes}</div>` : ""}${year}</div>` : ""}
         </div>
       </ha-card>`;
     // The first render guesses the sky size; reading it back forces layout, so
     // this works even in a background tab, where animation frames are paused.
     this._measureSky();
+  }
+
+  /** This year's rain, high, and low under the forecast; the all-time high and low join once the history goes back further. */
+  _renderRecords({ now, timeZone, displayUnit, rain, live }) {
+    const { year, ever } = temperatureRecords(this._recordStats, { now, timeZone });
+    const shown = (celsius) => (celsius === undefined ? null : convertTemperature(celsius, "°C", displayUnit));
+    // Statistics are compiled hourly, so the reading right now can beat them.
+    const extreme = (pick, recorded) => {
+      const values = [shown(recorded), live].filter((value) => value !== null);
+      return values.length ? pick(...values) : null;
+    };
+    const cell = (label, text, unit, color, note) => `
+      <div class="record">
+        <div class="time-line"><strong class="time"${color ? ` style="color: ${color}"` : ""}>${escapeHtml(text)}</strong>${unit ? `<span class="unit">${escapeHtml(unit)}</span>` : ""}</div>
+        <span class="label">${label}</span>${note ? `<span class="record-ever">${escapeHtml(note)}</span>` : ""}
+      </div>`;
+    const temperature = (label, value, everValue) => cell(
+      label,
+      value === null ? "—" : `${formatNumber(value)}°`,
+      "",
+      null,
+      ever ? `All-time ${formatNumber(shown(everValue))}°` : "",
+    );
+    const cells = [];
+    if (rain) {
+      const [amount, unit = ""] = formatPrecipitation(rain.value, rain.unit).split(" ");
+      cells.push(cell("Rain YTD", amount, unit, "#9db8ff"));
+    }
+    if (this._config.temperature_sensor) {
+      cells.push(temperature("High YTD", extreme(Math.max, year?.high), ever ? Math.max(ever.high, convertTemperature(live, displayUnit, "°C") ?? -Infinity) : null));
+      cells.push(temperature("Low YTD", extreme(Math.min, year?.low), ever ? Math.min(ever.low, convertTemperature(live, displayUnit, "°C") ?? Infinity) : null));
+    }
+    return cells.length ? `<div class="records" style="--count: ${cells.length}">${cells.join("")}</div>` : "";
   }
 
   /** A ribbon for the first day of a season, with the moment of the equinox or solstice. */
@@ -2654,16 +2710,16 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .sun-time .unit { color: ${mutedColor}; font-size: 10px; }
       .sun-time .label { color: ${mutedColor}; font-size: 9.5px; }
       .daylight-change { color: ${mutedColor}; font-size: 9.5px; letter-spacing: .18em; line-height: 1.5; text-align: center; }
-      .rain-totals { display: grid; grid-template-columns: repeat(var(--count), minmax(0, 1fr)); column-gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
-      .footer > .rain-totals:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
-      .rain-total { display: flex; flex-direction: column; align-items: center; gap: 5px; white-space: nowrap; }
-      .rain-total:first-child { align-items: flex-start; }
-      .rain-total:last-child:not(:first-child) { align-items: flex-end; }
-      .rain-total .time { color: #9db8ff; }
-      .rain-total .unit { color: ${mutedColor}; font-size: 10px; }
-      .rain-total .label { color: ${mutedColor}; font-size: 9.5px; }
+      .records { display: grid; grid-template-columns: repeat(var(--count), minmax(0, 1fr)); column-gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
+      .footer > .records:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+      .record { display: flex; flex-direction: column; align-items: center; gap: 5px; white-space: nowrap; }
+      .record:first-child { align-items: flex-start; }
+      .record:last-child:not(:first-child) { align-items: flex-end; }
+      .record .unit { color: ${mutedColor}; font-size: 10px; }
+      .record .label { color: ${mutedColor}; font-size: 9.5px; }
+      .record-ever { margin-top: -1px; color: ${mutedColor}; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; opacity: .8; }
       .forecast + .sun-block, .footer-note + .sun-block { margin-top: 16px; }
-      .forecast + .sun-block.divided, .footer-note + .sun-block.divided, .rain-totals + .sun-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
+      .forecast + .sun-block.divided, .footer-note + .sun-block.divided, .records + .sun-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
       .year { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
       .sun-block:not(.divided) + .year { margin-top: 16px; }
       .year-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
@@ -2715,7 +2771,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         .unit { font-size: 11px; }
         .label { font-size: 9.5px; letter-spacing: .16em; }
         .time { font-size: clamp(17px, 5cqw, 21px); }
-        .sun-time .label, .rain-total .label { font-size: 8.5px; letter-spacing: .14em; }
+        .sun-time .label, .record .label { font-size: 8.5px; letter-spacing: .14em; }
         .daylight-change { font-size: 8.5px; letter-spacing: .14em; }
         .forecast { column-gap: 8px; }
       }

@@ -345,7 +345,8 @@ test("shows rain today, this storm, and this year, then this year's high and low
     card._recordStatsKey = stats === undefined ? undefined : "sensor.station_temp";
     card._render();
     const html = card.shadowRoot.innerHTML;
-    const row = html.slice(html.indexOf('<div class="records"'), html.indexOf('<div class="sun-block'));
+    // The records row is the last thing on the card.
+    const row = html.slice(html.indexOf('<div class="records"'));
     return {
       values: [...row.matchAll(/<strong class="time"[^>]*>([^<]+)<\/strong>/g)].map((m) => m[1]),
       labels: [...row.matchAll(/<span class="label">([^<]+)<\/span>/g)].map((m) => m[1]),
@@ -362,7 +363,8 @@ test("shows rain today, this storm, and this year, then this year's high and low
   assert.deepEqual(row.ever, []);
   // A rule divides the rain from the temperatures.
   assert.match(row.html, /Rain YTD<\/span>\s*<\/div><span class="records-rule"/);
-  assert.ok(row.html.indexOf('class="forecast"') < row.html.indexOf('class="records"'));
+  assert.ok(row.html.indexOf('class="sun-block') < row.html.indexOf('class="records"'));
+  assert.ok(row.html.indexOf('class="year"') < row.html.indexOf('class="records"'));
 
   row = records([month("2025-12-01T08:00:00Z", -1, 15), ...thisYear]);
   assert.deepEqual(row.values, [".08", "0", "32.8", "102°", "47°"]);

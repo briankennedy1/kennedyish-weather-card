@@ -32,7 +32,7 @@ It is one JavaScript file with no build step and no dependencies. It works anywh
 - **The year.** A bar of the whole year in season colors, with a countdown to the next season. Point at or drag along it to see any day. The seasons flip in the southern hemisphere.
 - **Season celebrations.** On the first day of each season, the footer takes on the season's colors and a ribbon gives the exact time of the equinox or solstice. Blossoms, starbursts, leaves, or snowflakes drift through the sky.
 - **Weather alerts (US).** National Weather Service alerts appear as a band colored by severity. Tap it to read the full alert.
-- **Your own weather station.** Point the card at your station's sensors and its readings take over. Rain in the gauge becomes drizzle, rain, or a downpour, wind becomes breezy or windy, and smoky air turns the sky amber, with an air quality band when the air turns unhealthy. Turn on records for rain today, this storm, and this year, and this year's high and low, under the forecast.
+- **Your own weather station.** Point the card at your station's sensors and its readings take over. Rain in the gauge becomes drizzle, rain, or a downpour, wind becomes breezy or windy, and smoky air turns the sky amber, with an air quality band when the air turns unhealthy. Turn on records for rain today, this storm, and this year, and this year's high and low, at the bottom of the card.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/celebration.png" width="40%" alt="The first day of fall: a rust-colored footer with a ribbon announcing the equinox, and leaves drifting through the sky">
@@ -142,7 +142,7 @@ The station takes over the current temperature. The weather service still decide
 - **Rain:** under 0.03 in/h shows as drizzle, and 0.3 in/h or more as pouring. A dry gauge turns a forecast of rain into cloudy.
 - **Wind:** 12 mph turns a clear sky breezy. 20 mph, or gusts of 30, turns it windy.
 - **Air:** once PM2.5 brings the AQI to 101, a clear or cloudy sky turns smoky, and an air quality band appears with the EPA's health guidance.
-- **Records:** with `show_records: true`, a row under the forecast shows rain today, this storm, and this year from the daily, event, and yearly rain sensors, then, past a divider, this year's high and low from Home Assistant's history of the temperature sensor. Once that history goes back past January 1, the all-time high and low show under them.
+- **Records:** with `show_records: true`, a row at the bottom of the card shows rain today, this storm, and this year from the daily, event, and yearly rain sensors, then, past a divider, this year's high and low from Home Assistant's history of the temperature sensor. Once that history goes back past January 1, the all-time high and low show under them.
 
 ### All options
 

@@ -2143,7 +2143,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       <ha-card aria-label="${escapeHtml(aria)}" class="${celebration ? `celebrate celebrate-${celebration.season}` : ""}">
         <div class="content">
           ${sky}
-          ${alertBand || banner || forecast || records || sunTimes || year ? `<div class="footer">${alertBand}${banner}${forecast}${records}${sunTimes ? `<div class="sun-block${solar.isDay ? "" : " divided"}">${sunTimes}</div>` : ""}${year}</div>` : ""}
+          ${alertBand || banner || forecast || records || sunTimes || year ? `<div class="footer">${alertBand}${banner}${forecast}${sunTimes ? `<div class="sun-block${solar.isDay ? "" : " divided"}">${sunTimes}</div>` : ""}${year}${records}</div>` : ""}
         </div>
       </ha-card>`;
     // The first render guesses the sky size; reading it back forces layout, so
@@ -2767,7 +2767,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .records-rule { flex: none; width: 1px; background: rgba(251, 243, 226, .18); }
       .record-ever { margin-top: -1px; color: ${mutedColor}; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; opacity: .8; }
       .forecast + .sun-block, .footer-note + .sun-block { margin-top: 16px; }
-      .forecast + .sun-block.divided, .footer-note + .sun-block.divided, .records + .sun-block { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
+      .forecast + .sun-block.divided, .footer-note + .sun-block.divided { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
       .year { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }
       .sun-block:not(.divided) + .year { margin-top: 16px; }
       .year-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 9px; }

@@ -1,7 +1,7 @@
-const CARD_VERSION = "2.0.0";
+const CARD_VERSION = "2.1.0";
 
 // A small square button in the Kennedyish Weather card's style: deep teal when off,
-// glowing in the bulb's color (or turquoise for a fan or plug) when on.
+// glowing in the bulb's color (or turquoise for a fan, plug or open garage door) when on.
 // Tap toggles; press and hold opens Home Assistant's controls. With a `timer`,
 // it counts down the time left, e.g. until an automation turns a fan off.
 
@@ -14,11 +14,19 @@ const ICONS = {
       .join("")}</g>`,
   plug: `<rect class="plate" x="11" y="11" width="26" height="26" rx="7"></rect>
     <path class="slots" d="M19.5 19 V25 M28.5 19 V25"></path>`,
+  // An open door shows only its top panel, rolled up.
+  garage: `<path class="shell" d="M9 37 V20 L24 10.5 L39 20 V37"></path>
+    <path class="door" d="M15.5 37 V24.5 H32.5 V37 M15.5 28 H32.5"></path>
+    <path class="door lower" d="M15.5 31 H32.5 M15.5 34 H32.5"></path>`,
 };
+
+// States that light the button: a cover counts as on while open or moving.
+const ON_STATES = ["on", "open", "opening", "closing"];
 
 function iconKind(entityId, name) {
   if (entityId.startsWith("light.")) return "bulb";
   if (entityId.startsWith("fan.") || /\bfan\b/i.test(name)) return "fan";
+  if (entityId.startsWith("cover.")) return "garage";
   return "plug";
 }
 
@@ -102,7 +110,7 @@ export class KennedyishButtonCard extends HTMLElementBase {
     if (!this.shadowRoot) return;
     const stateObj = this._stateObj;
     const name = this._config.name || stateObj?.attributes.friendly_name || this._config.entity;
-    const on = stateObj?.state === "on";
+    const on = ON_STATES.includes(stateObj?.state);
     const kind = this._config.icon || iconKind(this._config.entity, name);
     const rgb = stateObj?.attributes.rgb_color;
     const glow = on && kind === "bulb" && rgb ? `--glow: rgb(${rgb.join(", ")})` : "";
@@ -136,7 +144,7 @@ export class KennedyishButtonCard extends HTMLElementBase {
         }
         ha-card:active { transform: scale(.96); }
         ha-card.on { color: #123f3c; background: linear-gradient(145deg, color-mix(in srgb, var(--glow) 45%, #fff4d6), var(--glow)); }
-        ha-card.on.fan, ha-card.on.plug { background: linear-gradient(145deg, #bfe8dd, #5fbfb5); }
+        ha-card.on.fan, ha-card.on.plug, ha-card.on.garage { background: linear-gradient(145deg, #bfe8dd, #5fbfb5); }
         /* Ben-Day dots over a lit button, like the weather card's skies. */
         ha-card.on::before {
           content: "";
@@ -161,7 +169,9 @@ export class KennedyishButtonCard extends HTMLElementBase {
         .on .knob { background: #fffaf0; box-shadow: 0 2px 8px rgba(60, 40, 20, .2); }
         svg { width: 34px; height: 34px; fill: rgba(251, 243, 226, .68); stroke: rgba(251, 243, 226, .68); }
         .on svg { fill: #123f3c; stroke: #123f3c; }
-        .glass, .guard, .plate { fill: none; stroke-width: 2; }
+        .glass, .guard, .plate, .shell, .door { fill: none; stroke-width: 2; }
+        .shell { stroke-linejoin: round; }
+        .on .lower { display: none; }
         .on .glass { fill: color-mix(in srgb, var(--glow) 45%, #fff6d8); stroke: #ef7656; }
         .guard { stroke-width: 1.6; stroke-dasharray: 2.2 2.6; }
         .slots { stroke-width: 2.6; stroke-linecap: round; }

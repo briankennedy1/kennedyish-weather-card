@@ -21,13 +21,15 @@
         "light.front_porch": { state: "on", attributes: { friendly_name: "Front Porch", rgb_color: [255, 183, 104] } },
         "light.front_room_1": { state: "off", attributes: { friendly_name: "Front Room Bulb 1" } },
         "light.front_room_2": { state: "off", attributes: { friendly_name: "Front Room Bulb 2" } },
+        "cover.garage_door": { state: "closed", attributes: { friendly_name: "Garage Door" } },
       };
       const cards = [];
       const hass = () => ({
         states: { ...states },
         callService: (domain, service, { entity_id }) => {
           const old = states[entity_id];
-          states[entity_id] = { ...old, state: old.state === "on" ? "off" : "on", attributes: { rgb_color: [255, 183, 104], ...old.attributes } };
+          const next = entity_id.startsWith("cover.") ? { open: "closed", closed: "open" } : { on: "off", off: "on" };
+          states[entity_id] = { ...old, state: next[old.state], attributes: { rgb_color: [255, 183, 104], ...old.attributes } };
           cards.forEach((card) => (card.hass = hass()));
         },
       });

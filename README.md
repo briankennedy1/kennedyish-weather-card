@@ -195,7 +195,7 @@ This card started as a fork of [clock-weather-card](https://github.com/pkissling
 
 ## Kennedyish Button
 
-`kennedyish-button-card.js` is a small square button in the same style, for a light, switch, or fan. It glows in the bulb's color (or turquoise for a fan or plug) when on. Tap to toggle, or press and hold for Home Assistant's controls. HACS installs only the weather card, so add this one by hand like the manual install above, as `/local/kennedyish-button-card.js`.
+`kennedyish-button-card.js` is a small square button in the same style, for a light, switch, fan, or garage door. It glows in the bulb's color (or turquoise for a fan, plug, or open garage door) when on. Tap to toggle, or press and hold for Home Assistant's controls. HACS installs only the weather card, so add this one by hand like the manual install above, as `/local/kennedyish-button-card.js`.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/briankennedy1/kennedyish-weather-card/main/images/buttons.png" width="500" alt="Four buttons: a turquoise bath fan with 24:11 left on its timer, a glowing amber front porch light, and two front room bulbs off in deep teal">
@@ -206,7 +206,7 @@ type: custom:kennedyish-button-card
 entity: light.front_porch
 ```
 
-The options are `name`, `icon` (`bulb`, `fan`, or `plug`), and `timer`, a timer entity whose time left shows under the name while it runs.
+The options are `name`, `icon` (`bulb`, `fan`, `plug`, or `garage`), and `timer`, a timer entity whose time left shows under the name while it runs.
 
 ## Notes
 

@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.4.1";
+const CARD_VERSION = "4.5.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -499,6 +499,11 @@ const RAIN_RECORDS = [
   ["rain_today_sensor", "Rain today"],
   ["rain_event_sensor", "Rain event"],
   ["rain_year_sensor", "Rain YTD"],
+];
+/** Snow totals, for a second records row (a station's gauge misses snow, so these usually come from a model). */
+const SNOW_RECORDS = [
+  ["snow_today_sensor", "Snow today"],
+  ["snow_season_sensor", "Snow season"],
 ];
 
 const RECORDS_STORAGE_PREFIX = "kennedyish-weather-card:records:";
@@ -1548,6 +1553,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
             { name: "rain_today_sensor", selector: sensor },
             { name: "rain_event_sensor", selector: sensor },
             { name: "rain_year_sensor", selector: sensor },
+            { name: "snow_today_sensor", selector: sensor },
+            { name: "snow_season_sensor", selector: sensor },
             { name: "wind_speed_sensor", selector: sensor },
             { name: "wind_gust_sensor", selector: sensor },
             { name: "pm25_sensor", selector: sensor },
@@ -1597,6 +1604,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           rain_today_sensor: "Daily rain sensor",
           rain_event_sensor: "Event rain sensor",
           rain_year_sensor: "Yearly rain sensor",
+          snow_today_sensor: "Snow today sensor",
+          snow_season_sensor: "Snow season sensor",
           wind_speed_sensor: "Wind speed sensor",
           wind_gust_sensor: "Wind gust sensor",
           pm25_sensor: "PM2.5 sensor",
@@ -1614,6 +1623,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           humidity_sensor: "Overrides the weather entity's humidity",
           rain_rate_sensor: "A station's rain gauge; corrects rain in the current condition",
           rain_today_sensor: "The rain sensors lead the records row",
+          snow_today_sensor: "Snow today and this season get their own records row, with this year's high and low",
           show_records: "Rain today, this storm, and this year, then this year's high and low from Home Assistant's history",
           wind_speed_sensor: "A station's sustained wind; shows windy at 20 mph or more",
           show_alerts: "National Weather Service alerts (US only); on by default",
@@ -1844,6 +1854,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       states[config.rain_today_sensor],
       states[config.rain_event_sensor],
       states[config.rain_year_sensor],
+      states[config.snow_today_sensor],
+      states[config.snow_season_sensor],
       states[config.wind_speed_sensor],
       states[config.wind_gust_sensor],
       states[config.pm25_sensor],
@@ -2128,7 +2140,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       : "";
 
     const records = config.show_records
-      ? this._renderRecords({ now, timeZone, displayUnit, rain: RAIN_RECORDS.map(([key, label]) => [label, reading(config[key])]), live: this._sensorTemperature(config.temperature_sensor, displayUnit) })
+      ? this._renderRecords({ now, timeZone, displayUnit, rain: RAIN_RECORDS.map(([key, label]) => [label, reading(config[key])]), snow: SNOW_RECORDS.map(([key, label]) => [label, reading(config[key])]), live: this._sensorTemperature(config.temperature_sensor, displayUnit) })
       : "";
 
     const alerts = config.show_alerts === false ? [] : activeAlerts(this._alerts, now);
@@ -2152,7 +2164,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
   }
 
   /** Rain today, this storm, and this year, then this year's high and low; the all-time high and low join once the history goes back further. */
-  _renderRecords({ now, timeZone, displayUnit, rain, live }) {
+  _renderRecords({ now, timeZone, displayUnit, rain, snow = [], live }) {
     const key = this._config.temperature_sensor;
     const stats = this._recordStatsKey === key ? this._recordStats : cachedRecords(key);
     // Until the history arrives, the high and low hold their place blank rather than show the reading right now.
@@ -2174,20 +2186,28 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       ever ? `All-time ${formatNumber(shown(everValue))}°` : "",
       pending ? " pending" : "",
     );
-    const rainCells = rain
+    const totals = (list, color) => list
       .filter(([, total]) => total)
       .map(([label, total]) => {
         const [amount, unit = ""] = formatPrecipitation(total.value, total.unit).split(" ");
-        return cell(label, amount, unit, "#9db8ff");
+        return cell(label, amount, unit, color);
       });
+    const rainCells = totals(rain, "#9db8ff");
+    const snowCells = totals(snow, "#e4f0f5");
     const temperatureCells = this._config.temperature_sensor
       ? [
           temperature("High YTD", extreme(Math.max, year?.high), ever ? Math.max(ever.high, convertTemperature(live, displayUnit, "°C") ?? -Infinity) : null),
           temperature("Low YTD", extreme(Math.min, year?.low), ever ? Math.min(ever.low, convertTemperature(live, displayUnit, "°C") ?? Infinity) : null),
         ]
       : [];
-    const groups = [rainCells, temperatureCells].filter((group) => group.length).map((group) => group.join(""));
-    return groups.length ? `<div class="records">${groups.join('<span class="records-rule" aria-hidden="true"></span>')}</div>` : "";
+    const row = (cells, extra = "") => {
+      const groups = cells.filter((group) => group.length).map((group) => group.join(""));
+      return groups.length ? `<div class="records${extra}">${groups.join('<span class="records-rule" aria-hidden="true"></span>')}</div>` : "";
+    };
+    // With snow, rain gets the first row and snow shares the second with the high and low.
+    return snowCells.length
+      ? row([rainCells]) + row([snowCells, temperatureCells], " records-second")
+      : row([rainCells, temperatureCells]);
   }
 
   /** A ribbon for the first day of a season, with the moment of the equinox or solstice. */
@@ -2765,6 +2785,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .record .label { color: ${mutedColor}; font-size: 9.5px; }
       .record.pending { visibility: hidden; }
       .records-rule { flex: none; width: 1px; background: rgba(251, 243, 226, .18); }
+      .records.records-second { margin-top: 12px; padding-top: 0; border-top: 0; }
       .record-ever { margin-top: -1px; color: ${mutedColor}; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; opacity: .8; }
       .forecast + .sun-block, .footer-note + .sun-block { margin-top: 16px; }
       .forecast + .sun-block.divided, .footer-note + .sun-block.divided { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(251, 243, 226, .12); }

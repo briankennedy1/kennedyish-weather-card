@@ -173,6 +173,8 @@ The station takes over the current temperature. The weather service still decide
 | `rain_today_sensor` | — | A station's rain so far today, for the records row |
 | `rain_event_sensor` | — | A station's rain so far this storm, for the records row |
 | `rain_year_sensor` | — | A station's rain so far this year, for the records row |
+| `snow_today_sensor` | — | Snow today, for a second records row (with `show_records`) |
+| `snow_season_sensor` | — | Snow so far this season, for the second records row |
 | `wind_speed_sensor` | — | A station's sustained wind speed |
 | `wind_gust_sensor` | — | A station's wind gust speed |
 | `pm25_sensor` | — | PM2.5 in µg/m³; the card works out the US AQI |

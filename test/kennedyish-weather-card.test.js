@@ -742,3 +742,16 @@ test("temperature_unit shows the card in °C or °F, whatever Home Assistant use
   assert.match(makeCard().shadowRoot.innerHTML, /78<span class="deg">°<\/span>/);
   assert.throws(() => makeCard({ temperature_unit: "K" }), /must be "C" or "F"/);
 });
+
+test("mergeForecasts reads daily forecasts stamped at midnight UTC as that calendar date", () => {
+  const rows = mergeForecasts(
+    [
+      { datetime: "2026-11-11T00:00:00+00:00", condition: "sunny", temperature: 70, templow: 33 },
+      { datetime: "2026-11-12T00:00:00+00:00", condition: "rainy", temperature: 61, templow: 39, precipitation: 0.6 },
+    ],
+    { timeZone: "America/Los_Angeles", rows: 5 },
+  );
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", weekday: "short", month: "numeric", day: "numeric" });
+  assert.deepEqual(rows.map((row) => day.format(row.datetime)), ["Wed, 11/11", "Thu, 11/12"]);
+  assert.equal(rows[1].precipitation, 0.6);
+});

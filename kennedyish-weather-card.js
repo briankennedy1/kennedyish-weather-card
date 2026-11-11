@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.5.0";
+const CARD_VERSION = "4.5.1";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -264,8 +264,14 @@ const isNumber = (value) => value !== null && value !== undefined && Number.isFi
 export function mergeForecasts(forecasts, { hourly = false, timeZone, rows = 5 } = {}) {
   const groups = new Map();
   for (const forecast of forecasts || []) {
-    const datetime = new Date(forecast.datetime);
+    let datetime = new Date(forecast.datetime);
     if (Number.isNaN(datetime.valueOf())) continue;
+    // Some services (Home Assistant's Open-Meteo) stamp each day at midnight UTC, which west
+    // of Greenwich falls on the evening before. Read those as the calendar date: noon UTC
+    // is on the same date from UTC−11 to UTC+11.
+    if (!hourly && /T00:00(:00(\.0+)?)?(Z|[+-]00:?00)$/.test(String(forecast.datetime))) {
+      datetime = new Date(`${String(forecast.datetime).slice(0, 10)}T12:00:00Z`);
+    }
     const key = periodKey(datetime, timeZone, hourly);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ ...forecast, datetime });

@@ -219,6 +219,35 @@ test("with no current condition, follows the hour under way, not a rainy 12-hour
   assert.match(card.shadowRoot.innerHTML, /<span class="label">Partly cloudy<\/span>/);
 });
 
+test("shows the fallback entity while the weather entity is unavailable, and switches back when it returns", async () => {
+  // Everstoke, 2026-11-13: Open-Meteo's API was down, so weather.everstoke was unavailable.
+  const card = makeCard({ fallback_entity: "weather.met" }, { condition: "unavailable" });
+  const subscriptions = [];
+  Object.defineProperty(card, "isConnected", { value: true });
+  const states = (main) => ({
+    ...card._hass.states,
+    "weather.forecast_home": { ...card._hass.states["weather.forecast_home"], state: main },
+    "weather.met": { state: "rainy", attributes: { temperature: 45, temperature_unit: "°F", supported_features: 1 } },
+  });
+  const connection = { subscribeMessage: async (callback, message) => { subscriptions.push(message.entity_id); return () => {}; } };
+  card.hass = { ...card._hass, states: states("unavailable"), connection };
+  await Promise.resolve();
+  assert.equal(card._weatherEntity(), "weather.met");
+  assert.deepEqual(subscriptions, ["weather.met"]);
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Rainy<\/span>/);
+  assert.match(card.shadowRoot.innerHTML, /45<span class="deg">°<\/span>/);
+
+  card.hass = { ...card._hass, states: states("sunny") };
+  await Promise.resolve();
+  assert.equal(card._weatherEntity(), "weather.forecast_home");
+  assert.deepEqual(subscriptions, ["weather.met", "weather.forecast_home"]);
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Sunny<\/span>/);
+
+  // A fallback that is also down is no help: stay on the weather entity.
+  card.hass = { ...card._hass, states: { ...states("unavailable"), "weather.met": { state: "unavailable", attributes: {} } } };
+  assert.equal(card._weatherEntity(), "weather.forecast_home");
+});
+
 test("falls back to the forecast period under way when the station reports no condition", () => {
   const periods = [
     { datetime: "2026-10-13T13:00:00Z", condition: "sunny" },

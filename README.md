@@ -149,6 +149,7 @@ The station takes over the current temperature. The weather service still decide
 | Option | Default | Description |
 | --- | --- | --- |
 | `entity` | — | **Required.** A weather entity |
+| `fallback_entity` | — | A second weather entity, shown while `entity` is unavailable (for example, when its weather service is down). The card switches back once `entity` returns |
 | `title` | — | A small label above the temperature |
 | `latitude`, `longitude` | Home Assistant's home | Where to calculate the sun and seasons, and fetch US alerts |
 | `time_zone` | Home Assistant's time zone | An IANA time zone, like `Europe/London` |

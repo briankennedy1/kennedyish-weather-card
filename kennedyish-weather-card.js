@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.5.1";
+const CARD_VERSION = "4.6.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -1504,6 +1504,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     return {
       schema: [
         { name: "entity", required: true, selector: { entity: { domain: "weather" } } },
+        { name: "fallback_entity", selector: { entity: { domain: "weather" } } },
         { name: "title", selector: { text: {} } },
         {
           type: "grid",
@@ -1590,6 +1591,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       computeLabel: (schema) =>
         ({
           entity: "Weather entity",
+          fallback_entity: "Fallback weather entity",
           title: "Title",
           forecast_rows: "Forecast rows",
           time_format: "Time format",
@@ -1625,6 +1627,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         })[schema.name] || schema.name,
       computeHelper: (schema) =>
         ({
+          fallback_entity: "Used while the weather entity is unavailable, e.g. when its provider is down",
           temperature_sensor: "Overrides the weather entity's current temperature",
           humidity_sensor: "Overrides the weather entity's humidity",
           rain_rate_sensor: "A station's rain gauge; corrects rain in the current condition",
@@ -1688,7 +1691,12 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       time_format: timeFormat,
       temperature_unit: temperatureUnit === "AUTO" ? "auto" : temperatureUnit,
     };
-    if (previous && (previous.entity !== config.entity || Boolean(previous.hourly_forecast) !== Boolean(config.hourly_forecast))) {
+    if (
+      previous &&
+      (previous.entity !== config.entity ||
+        previous.fallback_entity !== config.fallback_entity ||
+        Boolean(previous.hourly_forecast) !== Boolean(config.hourly_forecast))
+    ) {
       this._unsubscribe();
       this._forecast = null;
     }
@@ -1852,6 +1860,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const states = hass.states || {};
     return [
       states[config.entity],
+      states[config.fallback_entity],
       states[config.temperature_sensor],
       states[config.humidity_sensor],
       states[config.apparent_sensor],
@@ -1891,21 +1900,34 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     return daily ? "daily" : twiceDaily ? "twice_daily" : "hourly";
   }
 
+  /**
+   * The weather entity in use: `entity`, or `fallback_entity` while `entity` is
+   * unavailable (its provider is down) and the fallback is not. It switches back
+   * on its own once `entity` returns.
+   */
+  _weatherEntity() {
+    const { entity, fallback_entity: fallback } = this._config;
+    const states = this._hass?.states || {};
+    const down = (id) => !states[id] || states[id].state === "unavailable";
+    return fallback && down(entity) && !down(fallback) ? fallback : entity;
+  }
+
   _subscribe() {
     const hass = this._hass;
     const config = this._config;
     if (!hass?.connection || !config || !this.isConnected) return;
-    const stateObj = hass.states?.[config.entity];
+    const entity = this._weatherEntity();
+    const stateObj = hass.states?.[entity];
     if (!stateObj) return;
-    this._subscribeHourNow(stateObj);
+    this._subscribeHourNow(stateObj, entity);
     const type = this._forecastType(stateObj);
-    const key = `${config.entity}|${type}`;
+    const key = `${entity}|${type}`;
     if (key === this._subscriptionKey) return;
 
     this._unsubscribe();
     this._subscriptionKey = key;
     this._forecast = null;
-    this._forecastError = type === "unsupported" ? `${config.entity} has no hourly forecast.` : null;
+    this._forecastError = type === "unsupported" ? `${entity} has no hourly forecast.` : null;
     if (!type || type === "unsupported") return;
 
     this._subscription = Promise.resolve(
@@ -1915,7 +1937,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           this._forecast = event?.forecast || [];
           this._render();
         },
-        { type: "weather/subscribe_forecast", forecast_type: type, entity_id: config.entity },
+        { type: "weather/subscribe_forecast", forecast_type: type, entity_id: entity },
       ),
     ).catch((error) => {
       console.error("kennedyish-weather-card: forecast subscription failed", error);
@@ -1933,14 +1955,13 @@ export class KennedyishWeatherCard extends HTMLElementBase {
    * way. A day or 12-hour period says "rainy" if rain falls at any point in it,
    * which says nothing about the sky right now.
    */
-  _subscribeHourNow(stateObj) {
-    const config = this._config;
+  _subscribeHourNow(stateObj, entity) {
     const features = Number(stateObj.attributes?.supported_features) || 0;
     const needed =
       ["unknown", "unavailable"].includes(stateObj.state) &&
       (features & FEATURE_FORECAST_HOURLY) !== 0 &&
       this._forecastType(stateObj) !== "hourly";
-    const key = needed ? config.entity : null;
+    const key = needed ? entity : null;
     if (key === this._hourSubscriptionKey) return;
 
     this._unsubscribeHourNow();
@@ -1953,7 +1974,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           this._hourNow = event?.forecast || [];
           this._render();
         },
-        { type: "weather/subscribe_forecast", forecast_type: "hourly", entity_id: config.entity },
+        { type: "weather/subscribe_forecast", forecast_type: "hourly", entity_id: entity },
       ),
     ).catch((error) => {
       console.error("kennedyish-weather-card: hourly forecast subscription failed", error);
@@ -2027,9 +2048,10 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       this._renderMessage("Loading weather…");
       return;
     }
-    const stateObj = hass.states?.[config.entity];
+    const entity = this._weatherEntity();
+    const stateObj = hass.states?.[entity];
     if (!stateObj) {
-      this._renderMessage(`Weather entity ${config.entity} was not found.`, true);
+      this._renderMessage(`Weather entity ${entity} was not found.`, true);
       return;
     }
 

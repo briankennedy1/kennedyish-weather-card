@@ -22,6 +22,9 @@ import {
   skyScene,
   temperatureColor,
   weatherIllustration,
+  withRainCheck,
+  withSunCheck,
+  sunBaseline,
 } from "../kennedyish-weather-card.js";
 
 const TZ = "America/Los_Angeles";
@@ -783,4 +786,59 @@ test("mergeForecasts reads daily forecasts stamped at midnight UTC as that calen
   const day = new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", weekday: "short", month: "numeric", day: "numeric" });
   assert.deepEqual(rows.map((row) => day.format(row.datetime)), ["Wed, 11/11", "Thu, 11/12"]);
   assert.equal(rows[1].precipitation, 0.6);
+});
+
+test("a second opinion on rain shows drizzle the gauge can't catch", () => {
+  // Jennings, 2026-11-13 8:25 AM: Pirate Weather said sunny, met.no rainy, and
+  // the Steffan gauge read 0 in/h through a drizzle too light to tip it.
+  assert.equal(withRainCheck("sunny", "rainy", 0), "drizzle");
+  assert.equal(withRainCheck("cloudy", "rainy", null), "rainy", "no gauge: take the second opinion as is");
+  assert.equal(withRainCheck("cloudy", "pouring", 0.4), "pouring");
+  assert.equal(withRainCheck("sunny", "snowy", 0), "snowy", "the gauge doesn't measure snow");
+  assert.equal(withRainCheck("rainy", "sunny", 0.1), "rainy", "a dry second opinion changes nothing");
+  assert.equal(withRainCheck("pouring", "rainy", 0.5), "pouring", "already wet: the main condition stands");
+  assert.equal(withRainCheck("sunny", undefined, 0), "sunny");
+
+  const card = makeCard({ rain_check_entity: "weather.met", rain_rate_sensor: "sensor.rain" }, { condition: "sunny" });
+  card.hass = { ...card._hass, states: { ...card._hass.states,
+    "weather.met": { state: "rainy", attributes: {} },
+    "sensor.rain": { state: "0", attributes: { unit_of_measurement: "in/h" } } } };
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Drizzle<\/span>/);
+});
+
+test("the sun sensor's baseline is its best reading at this time of day", () => {
+  const day = 86_400_000;
+  const now = Date.parse("2026-11-13T16:25:00Z"); // 8:25 AM at Jennings
+  const rows = [
+    { start: now - day - 150_000, max: 224 },          // yesterday, same slot
+    { start: now - 2 * day + 5 * 60_000, max: 200 },   // two days ago, 5 min later
+    { start: now - 3 * day + 3 * 3_600_000, max: 380 }, // a different time of day
+    { start: now - 10 * 60_000, max: 35 },             // today: too recent to count
+  ];
+  assert.equal(sunBaseline(rows, now), 224);
+  assert.equal(sunBaseline([], now), null);
+});
+
+test("the sun sensor turns a sunny forecast cloudy when the sun isn't getting through", () => {
+  // Jennings, 2026-11-13 8:25 AM: Pirate Weather said sunny; Steffan read 35 W/m²
+  // against 224 W/m² at this time on sunny days in the past 10 days.
+  assert.equal(withSunCheck("sunny", 35, 224), "cloudy");
+  assert.equal(withSunCheck("sunny", 120, 224), "partlycloudy");
+  assert.equal(withSunCheck("sunny", 210, 224), "sunny");
+  assert.equal(withSunCheck("partlycloudy", 35, 224), "cloudy");
+  assert.equal(withSunCheck("rainy", 35, 224), "rainy", "only sunny and partly cloudy are checked");
+  assert.equal(withSunCheck("sunny", 10, 40), "sunny", "too little sun at this hour to judge");
+  assert.equal(withSunCheck("sunny", null, 224), "sunny");
+});
+
+test("both checks together: this morning at Jennings reads as drizzle, not sunny", () => {
+  const card = makeCard({ irradiance_sensor: "sensor.sun", rain_check_entity: "weather.met", rain_rate_sensor: "sensor.rain" }, { condition: "sunny", now: "2026-11-13T16:25:00Z" });
+  card._sunRows = [{ start: Date.parse("2026-11-12T16:22:30Z"), max: 224 }];
+  card.hass = { ...card._hass, states: { ...card._hass.states,
+    "sensor.sun": { state: "35", attributes: { unit_of_measurement: "W/m²" } },
+    "weather.met": { state: "cloudy", attributes: {} },
+    "sensor.rain": { state: "0", attributes: { unit_of_measurement: "in/h" } } } };
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Cloudy<\/span>/, "the sun sensor alone: cloudy");
+  card.hass = { ...card._hass, states: { ...card._hass.states, "weather.met": { state: "rainy", attributes: {} } } };
+  assert.match(card.shadowRoot.innerHTML, /<span class="label">Drizzle<\/span>/, "with met.no saying rain: drizzle");
 });

@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.6.0";
+const CARD_VERSION = "4.7.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -345,6 +345,61 @@ export function refineCondition(condition, { rainRate = null, windSpeed = null, 
     result = "breezy";
   }
   return result;
+}
+
+// ── Sun check ──────────────────────────────────────────────────────────────
+
+const SUN_REFRESH_MS = 30 * 60_000;
+const SUN_HISTORY_DAYS = 10;
+/** The station's best reading for this time of day, within ±10 minutes. */
+const SUN_SLOT_MS = 10 * 60_000;
+/** Below this the sun is too low, or the station too shaded, to judge. */
+const SUN_BASELINE_MIN = 60;
+const OVERCAST_RATIO = 0.35;
+const HAZY_RATIO = 0.65;
+
+/**
+ * What a sunny sky gives this station now: the highest 5-minute reading at
+ * this time of day over the past days. Measuring against the station itself
+ * accounts for its own shade (a house or tree at noon) and the season.
+ */
+export function sunBaseline(rows, now = Date.now()) {
+  let best = null;
+  for (const row of rows || []) {
+    const start = typeof row.start === "number" ? row.start : Date.parse(row.start);
+    if (!Number.isFinite(row.max) || !Number.isFinite(start) || now - start < 3_600_000) continue;
+    const offset = ((now - start - 150_000) % DAY_MS + DAY_MS) % DAY_MS;
+    if (offset <= SUN_SLOT_MS || offset >= DAY_MS - SUN_SLOT_MS) best = Math.max(best ?? 0, row.max);
+  }
+  return best;
+}
+
+/**
+ * The station's sun sensor on a sunny or partly cloudy forecast: well under
+ * what a sunny sky gives it now means clouds. Only ever makes it cloudier.
+ */
+export function withSunCheck(condition, irradiance, baseline) {
+  if (!Number.isFinite(irradiance) || !Number.isFinite(baseline) || baseline < SUN_BASELINE_MIN) return condition;
+  if (condition !== "sunny" && condition !== "partlycloudy") return condition;
+  const ratio = irradiance / baseline;
+  if (ratio < OVERCAST_RATIO) return "cloudy";
+  if (ratio < HAZY_RATIO && condition === "sunny") return "partlycloudy";
+  return condition;
+}
+
+// ── Rain check ─────────────────────────────────────────────────────────────
+
+const WET_CONDITIONS = ["drizzle", "rainy", "pouring", "lightning-rainy", "snowy", "snowy-rainy", "hail"];
+
+/**
+ * A second weather entity's word on rain or snow: when it says it's coming
+ * down and the main condition doesn't, show it. Light rain the station's gauge
+ * can't catch (it reads 0) shows as drizzle. A dry second opinion changes nothing.
+ */
+export function withRainCheck(condition, check, rainRate = null) {
+  if (!WET_CONDITIONS.includes(check) || WET_CONDITIONS.includes(condition)) return condition;
+  if ((check === "rainy" || check === "pouring" || check === "drizzle") && rainRate === 0) return "drizzle";
+  return check;
 }
 
 /**
@@ -1505,6 +1560,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       schema: [
         { name: "entity", required: true, selector: { entity: { domain: "weather" } } },
         { name: "fallback_entity", selector: { entity: { domain: "weather" } } },
+        { name: "rain_check_entity", selector: { entity: { domain: "weather" } } },
+        { name: "irradiance_sensor", selector: { entity: { domain: "sensor", device_class: "irradiance" } } },
         { name: "title", selector: { text: {} } },
         {
           type: "grid",
@@ -1592,6 +1649,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         ({
           entity: "Weather entity",
           fallback_entity: "Fallback weather entity",
+          rain_check_entity: "Second opinion on rain",
+          irradiance_sensor: "Solar radiation sensor",
           title: "Title",
           forecast_rows: "Forecast rows",
           time_format: "Time format",
@@ -1628,6 +1687,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       computeHelper: (schema) =>
         ({
           fallback_entity: "Used while the weather entity is unavailable, e.g. when its provider is down",
+          rain_check_entity: "Shows rain or snow when this entity says so and the weather entity does not",
+          irradiance_sensor: "A station's solar radiation (W/m²); turns a sunny forecast cloudy when the sun isn't getting through",
           temperature_sensor: "Overrides the weather entity's current temperature",
           humidity_sensor: "Overrides the weather entity's humidity",
           rain_rate_sensor: "A station's rain gauge; corrects rain in the current condition",
@@ -1657,6 +1718,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     this._refreshAlerts();
     this._refreshRainChances();
     this._refreshRecords();
+    this._refreshSun();
     const watched = this._watchedStates();
     if (this._watched && watched.every((item, index) => item === this._watched[index])) return;
     this._watched = watched;
@@ -1718,6 +1780,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     clearInterval(this._recordsTimer);
     this._recordsTimer = setInterval(() => this._refreshRecords(true), RECORDS_REFRESH_MS);
     this._refreshRecords();
+    clearInterval(this._sunTimer);
+    this._sunTimer = setInterval(() => this._refreshSun(true), SUN_REFRESH_MS);
+    this._refreshSun();
     if (globalThis.ResizeObserver && !this._resizer) this._resizer = new ResizeObserver(() => this._measureSky());
     this._resizer?.observe(this);
     this._render();
@@ -1753,6 +1818,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     this._rainTimer = null;
     clearInterval(this._recordsTimer);
     this._recordsTimer = null;
+    clearInterval(this._sunTimer);
+    this._sunTimer = null;
     this._unsubscribe();
   }
 
@@ -1780,6 +1847,28 @@ export class KennedyishWeatherCard extends HTMLElementBase {
   }
 
   /** Fetch the temperature sensor's monthly highs and lows once, or again when `force`d by the refresh timer. */
+  /** The sun sensor's 5-minute history, to know what a sunny sky gives it at each time of day. */
+  async _refreshSun(force = false) {
+    const key = this._config?.irradiance_sensor;
+    if (!key || !this.isConnected || !this._hass?.connection) return;
+    if (!force && key === this._sunKey) return;
+    this._sunKey = key;
+    try {
+      const result = await this._hass.connection.sendMessagePromise({
+        type: "recorder/statistics_during_period",
+        start_time: new Date(Date.now() - SUN_HISTORY_DAYS * DAY_MS).toISOString(),
+        statistic_ids: [key],
+        period: "5minute",
+        types: ["max"],
+      });
+      if (key !== this._sunKey) return;
+      this._sunRows = result?.[key] || [];
+      this._render();
+    } catch (error) {
+      console.warn("kennedyish-weather-card: sun sensor history unavailable", error);
+    }
+  }
+
   async _refreshRecords(force = false) {
     const config = this._config;
     if (!config?.show_records || !config.temperature_sensor || !this.isConnected || !this._hass?.connection) return;
@@ -1861,6 +1950,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     return [
       states[config.entity],
       states[config.fallback_entity],
+      states[config.rain_check_entity],
+      states[config.irradiance_sensor],
       states[config.temperature_sensor],
       states[config.humidity_sensor],
       states[config.apparent_sensor],
@@ -2083,12 +2174,19 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     // Use the same local day/night calculation for the label and sky artwork.
     // With no current condition, the hour under way says more than the day.
     const forecasts = this._hourNow?.length ? this._hourNow : this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast;
-    const condition = normalizeCondition(refineCondition(currentCondition(stateObj.state, forecasts, now), {
-      rainRate: rain ? toInchesPerHour(rain) : null,
+    const rainRate = rain ? toInchesPerHour(rain) : null;
+    // The station's sun sensor first, so wind turns a clouded-over "sunny" into "windy-variant".
+    const irradiance = reading(config.irradiance_sensor);
+    const seen = night ? currentCondition(stateObj.state, forecasts, now)
+      : withSunCheck(currentCondition(stateObj.state, forecasts, now), irradiance?.value, sunBaseline(this._sunRows, now.valueOf()));
+    const refined = refineCondition(seen, {
+      rainRate,
       windSpeed: wind ? toMph(wind) : null,
       windGust: gust ? toMph(gust) : null,
       aqi: Number.isFinite(aqiReading) ? aqiReading : pm25Reading ? aqiFromPm25(pm25Reading.value) : null,
-    }), night);
+    });
+    // After the gauge's say: a gauge reading 0 can't rule out drizzle another source sees.
+    const condition = normalizeCondition(withRainCheck(refined, hass.states?.[config.rain_check_entity]?.state, rainRate), night);
     const group = getConditionGroup(condition);
     const skyPhase = group === "clear" || group === "partly" ? phase : night ? "night" : "day";
     const conditionLabel = condition === "sunny" && (phase === "dawn" || phase === "dusk")

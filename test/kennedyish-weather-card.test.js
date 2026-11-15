@@ -24,6 +24,8 @@ import {
   weatherIllustration,
   withRainCheck,
   nextHourPrecip,
+  upcomingEvent,
+  formatUntil,
   withSunCheck,
   sunBaseline,
 } from "../kennedyish-weather-card.js";
@@ -184,7 +186,7 @@ test("asks for the twice-daily forecast when the entity has no daily one, like N
 test("with no current condition, follows the hour under way, not a rainy 12-hour period", async () => {
   // Everstoke, 2026-10-20 6:17 AM: NWS reports no condition; the day period
   // is "rainy" (22%, showers after 2 PM) while the hour under way is cloudy.
-  const card = makeCard({}, {
+  const card = makeCard({ show_upcoming: false }, {
     condition: "unknown",
     features: 6,
     now: "2026-10-20T13:17:00Z",
@@ -225,7 +227,7 @@ test("with no current condition, follows the hour under way, not a rainy 12-hour
 
 test("shows the fallback entity while the weather entity is unavailable, and switches back when it returns", async () => {
   // Everstoke, 2026-11-13: Open-Meteo's API was down, so weather.everstoke was unavailable.
-  const card = makeCard({ fallback_entity: "weather.met" }, { condition: "unavailable" });
+  const card = makeCard({ fallback_entity: "weather.met", show_upcoming: false }, { condition: "unavailable" });
   const subscriptions = [];
   Object.defineProperty(card, "isConnected", { value: true });
   const states = (main) => ({
@@ -859,9 +861,76 @@ test("shows the next hour's rain or snow as a bar, and nothing on a dry hour", (
     card._render();
     return card.shadowRoot.innerHTML;
   };
-  assert.doesNotMatch(setSummary("Mostly clear for the hour."), /class="alerts next-hour"/);
+  assert.doesNotMatch(setSummary("Mostly clear for the hour."), /class="alerts next-hour/);
   const html = setSummary("Light rain starting in 20 min.");
-  assert.match(html, /class="alerts next-hour"[\s\S]*?<span class="alert-event">Light rain starting in 20 min<\/span>/);
-  assert.ok(html.indexOf('class="alerts next-hour"') < html.indexOf('class="forecast'), "the bar sits above the forecast");
-  assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="alerts next-hour"/, "no sensor, no bar");
+  assert.match(html, /class="alerts next-hour[^"]*"[\s\S]*?<span class="alert-event">Light rain starting in 20 min<\/span>/);
+  assert.ok(html.indexOf('class="alerts next-hour') < html.indexOf('class="forecast'), "the bar sits above the forecast");
+  assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="alerts next-hour/, "no sensor, no bar");
+});
+
+test("finds the first rain, snow, storm, fog, or wind in the next hours", () => {
+  const now = new Date("2026-11-15T16:20:00Z"); // 8:20 AM in Vallejo
+  const hour = (h, extra) => ({ datetime: `2026-11-15T${String(h).padStart(2, "0")}:00:00Z`, condition: "cloudy", ...extra });
+  // Pirate Weather, 2026-11-15: cloudy all morning, rain from 2 PM.
+  const pirate = [hour(16), hour(17), hour(18), hour(19), hour(20), hour(21), hour(22, { condition: "rainy" }), hour(23, { condition: "rainy" })];
+  let event = upcomingEvent(pirate, { now, windUnit: "mph", current: "cloudy" });
+  assert.equal(event.label, "Rain");
+  assert.equal(event.at.toISOString(), "2026-11-15T22:00:00.000Z");
+  assert.equal(formatUntil(event.at, now), "in 6 hours");
+
+  assert.equal(upcomingEvent(pirate, { now, current: "rainy" }), null, "rain already falling isn't news");
+  assert.equal(upcomingEvent(pirate, { now, hours: 4, current: "cloudy" }), null, "beyond the window");
+  assert.equal(upcomingEvent([hour(16), hour(17)], { now, current: "cloudy" }), null, "a quiet day shows nothing");
+
+  assert.equal(upcomingEvent([hour(17, { condition: "fog" }), hour(18, { condition: "rainy" })], { now }).label, "Fog", "the first event wins");
+  assert.equal(upcomingEvent([hour(17, { condition: "rainy" }), hour(17, { condition: "lightning-rainy" })], { now }).label, "Thunderstorms");
+  assert.equal(upcomingEvent([hour(18, { wind_gust_speed: 32 })], { now, windUnit: "mph" }).label, "Wind gusts");
+  assert.equal(upcomingEvent([hour(18, { wind_speed: 35 })], { now, windUnit: "km/h" }).label, "Wind", "35 km/h is 22 mph");
+  assert.equal(upcomingEvent([hour(18, { wind_gust_speed: 40 })], { now, windUnit: "km/h" }), null, "40 km/h gusts are 25 mph");
+  assert.equal(upcomingEvent([hour(18, { condition: "snowy" })], { now }).label, "Snow");
+
+  assert.equal(upcomingEvent([hour(18, { condition: "exceptional" })], { now }).label, "Exceptional weather");
+  assert.equal(upcomingEvent([hour(18, { precipitation_probability: 60 })], { now }).label, "Rain", "a likely shower in a cloudy hour");
+  assert.equal(upcomingEvent([hour(18, { precipitation_probability: 30 })], { now }), null);
+  const cold = upcomingEvent([hour(18, { temperature: 34 }), hour(19, { temperature: 31 })], { now, temperatureUnit: "°F", currentTemperature: 2, currentUnit: "°C" });
+  assert.deepEqual([cold.label, cold.icon, cold.at.getUTCHours()], ["Freezing", "freezing", 19]);
+  assert.equal(upcomingEvent([hour(19, { temperature: -2 })], { now, temperatureUnit: "°C", currentTemperature: 30, currentUnit: "°F" }), null, "already freezing");
+  assert.equal(upcomingEvent([hour(19, { temperature: 36 })], { now, temperatureUnit: "°C", currentTemperature: 80, currentUnit: "°F" }).label, "Heat", "36 °C is 97 °F");
+  assert.equal(upcomingEvent([hour(18, { condition: "pouring" })], { now }).icon, "pouring", "the icon follows the forecast's own condition");
+
+  assert.equal(formatUntil(new Date("2026-11-15T17:00:00Z"), now), "in 40 min");
+  assert.equal(formatUntil(new Date("2026-11-15T17:30:00Z"), now), "in 1 hour");
+});
+
+test("shows what's coming as a bar, unless the next-hour sensor has rain to say", () => {
+  const card = makeCard({ next_hour_sensor: "sensor.minutely" }, { condition: "cloudy", now: "2026-11-15T16:20:00Z" });
+  card._hourNow = [
+    { datetime: "2026-11-15T17:00:00Z", condition: "cloudy" },
+    { datetime: "2026-11-15T22:00:00Z", condition: "rainy" },
+  ];
+  const render = (summary) => {
+    card._hass = { ...card._hass, states: { ...card._hass.states, "sensor.minutely": { state: summary, attributes: {} } } };
+    card._render();
+    return card.shadowRoot.innerHTML;
+  };
+  let html = render("Mostly clear for the hour.");
+  assert.match(html, /class="alerts next-hour next-rain"[\s\S]*?<span class="alert-event">Rain in 6 hours<\/span>[\s\S]*?<span class="alert-until">2:00 PM<\/span>/);
+  html = render("Light rain starting in 12 min.");
+  assert.match(html, /<span class="alert-event">Light rain starting in 12 min<\/span>/);
+  assert.match(html, /class="next-icon"><svg class="wx wx-rainy"/);
+  assert.match(render("Light snow starting in 5 min."), /class="next-icon"><svg class="wx wx-snowy"/);
+  assert.equal(html.match(/class="alerts next-hour/g).length, 1, "one bar at a time");
+
+  card.setConfig({ ...card._config, show_upcoming: false });
+  card._hourNow = [{ datetime: "2026-11-15T22:00:00Z", condition: "rainy" }];
+  assert.doesNotMatch(render("Mostly clear for the hour."), /class="alerts next-hour/);
+});
+
+test("follows the hourly forecast for the bar while showing daily rows", async () => {
+  const card = makeCard({}, { features: 3 });
+  const subscriptions = [];
+  Object.defineProperty(card, "isConnected", { value: true });
+  card.hass = { ...card._hass, connection: { subscribeMessage: async (callback, message) => { subscriptions.push(message.forecast_type); return () => {}; } } };
+  await Promise.resolve();
+  assert.deepEqual(subscriptions.sort(), ["daily", "hourly"]);
 });

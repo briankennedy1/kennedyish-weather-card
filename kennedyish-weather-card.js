@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.8.0";
+const CARD_VERSION = "4.9.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -413,6 +413,80 @@ export function nextHourPrecip(text) {
   return summary.replace(/\.$/, "");
 }
 
+// What the upcoming-weather pill looks for in the hourly forecast, most serious first within an hour.
+const UPCOMING_KINDS = [
+  ["storm", "Thunderstorms", ["lightning", "lightning-rainy"]],
+  ["exceptional", "Exceptional weather", ["exceptional"]],
+  ["snow", "Snow", ["snowy"]],
+  ["sleet", "Sleet", ["snowy-rainy"]],
+  ["hail", "Hail", ["hail"]],
+  ["rain", "Rain", ["rainy", "pouring", "drizzle"]],
+  ["fog", "Fog", ["fog"]],
+  ["wind", "Wind", ["windy", "windy-variant"]],
+  ["freeze", "Freezing", []],
+  ["heat", "Heat", []],
+];
+// An hour the forecast calls cloudy but gives this chance of rain or more still counts as rain.
+const UPCOMING_PRECIP_CHANCE = 50;
+const FREEZING_F = 32;
+const HEAT_F = 95;
+
+/** The kind of weather a condition counts as for the upcoming pill, or null for a quiet sky. */
+export function upcomingKind(condition) {
+  return UPCOMING_KINDS.find(([, , conditions]) => conditions.includes(condition))?.[0] ?? null;
+}
+
+/**
+ * The first weather worth a heads-up that the hourly forecast has starting
+ * within the next `hours` hours, leaving out the kind already under way:
+ * storms, exceptional weather, snow, sleet, hail, rain (or a 50% chance of
+ * it), fog, wind (gusts of 30 mph, or 20 mph sustained), freezing (32°F), and
+ * heat (95°F). Within one hour the most serious wins.
+ * Returns { kind, label, at } or null.
+ */
+export function upcomingEvent(forecasts, { now = new Date(), hours = 10, windUnit = "km/h", temperatureUnit = "°F", current = null, currentTemperature = null, currentUnit = temperatureUnit } = {}) {
+  const ongoing = upcomingKind(current);
+  const fahrenheit = (value, unit = temperatureUnit) => (isNumber(value) ? convertTemperature(Number(value), unit, "°F") : null);
+  const nowF = fahrenheit(currentTemperature, currentUnit);
+  const end = now.valueOf() + hours * 3_600_000;
+  const mph = (value) => (isNumber(value) ? toMph({ value: Number(value), unit: windUnit }) : 0);
+  const entries = (forecasts || [])
+    .map((forecast) => ({ forecast, at: new Date(forecast.datetime) }))
+    .filter(({ at }) => !Number.isNaN(at.valueOf()) && at > now && at.valueOf() <= end)
+    .sort((a, b) => a.at - b.at);
+  const eventAt = ({ forecast, at }) => {
+    const found = UPCOMING_KINDS.find(([kind, , conditions]) => kind !== ongoing && conditions.includes(forecast.condition));
+    if (found) return { kind: found[0], label: found[1], at, icon: forecast.condition };
+    if (ongoing !== "rain" && !upcomingKind(forecast.condition) && Number(forecast.precipitation_probability) >= UPCOMING_PRECIP_CHANCE) {
+      return { kind: "rain", label: "Rain", at, icon: "rainy" };
+    }
+    if (ongoing !== "wind") {
+      if (mph(forecast.wind_gust_speed) >= WINDY_GUST_MPH) return { kind: "wind", label: "Wind gusts", at, icon: "windy" };
+      if (mph(forecast.wind_speed) >= WINDY_MPH) return { kind: "wind", label: "Wind", at, icon: "windy" };
+    }
+    const temperature = fahrenheit(forecast.temperature);
+    if (temperature !== null && temperature <= FREEZING_F && !(nowF !== null && nowF <= FREEZING_F)) return { kind: "freeze", label: "Freezing", at, icon: "freezing" };
+    if (temperature !== null && temperature >= HEAT_F && !(nowF !== null && nowF >= HEAT_F)) return { kind: "heat", label: "Heat", at, icon: "heat" };
+    return null;
+  };
+  const rank = (event) => UPCOMING_KINDS.findIndex(([kind]) => kind === event.kind);
+  let best = null;
+  for (const entry of entries) {
+    if (best && entry.at > best.at) break;
+    const event = eventAt(entry);
+    if (event && (!best || rank(event) < rank(best))) best = event;
+  }
+  return best;
+}
+
+/** "in 40 min", "in 1 hour", "in 5 hours". */
+export function formatUntil(at, now = new Date()) {
+  const minutes = Math.max(1, Math.round((at - now) / 60_000));
+  if (minutes < 60) return `in ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  return `in ${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
+
 /**
  * The entity's current condition, or, when its station doesn't report one
  * (NWS picks remote stations that measure only temperature and wind), the
@@ -472,6 +546,7 @@ const PM25_BREAKPOINTS = [
 ];
 // The air-quality bar appears from "Unhealthy for sensitive groups" up, unless configured otherwise.
 const AQI_ALERT_DEFAULT = 101;
+const UPCOMING_HOURS_DEFAULT = 10;
 const AQI_NAMES = {
   good: "Good air quality",
   moderate: "Moderate air quality",
@@ -732,13 +807,13 @@ const drops = (points, length = 13) =>
     .map(([x, y], index) => `<line class="drop" x1="${x}" y1="${y}" x2="${x - length * 0.3}" y2="${y + length}" style="--d: ${(index * -0.37).toFixed(2)}s"></line>`)
     .join("")}</g>`;
 
-const flakes = (points) =>
+const flakes = (points, size = 5.5) =>
   points
     .map(([x, y], index) => {
       const arms = [0, 60, 120]
         .map((angle) => {
-          const dx = (Math.cos((angle * Math.PI) / 180) * 5.5).toFixed(2);
-          const dy = (Math.sin((angle * Math.PI) / 180) * 5.5).toFixed(2);
+          const dx = (Math.cos((angle * Math.PI) / 180) * size).toFixed(2);
+          const dy = (Math.sin((angle * Math.PI) / 180) * size).toFixed(2);
           return `M${-dx} ${-dy} L${dx} ${dy}`;
         })
         .join(" ");
@@ -807,6 +882,11 @@ function conditionArt(kind, night) {
       return { anchor: [60, 12], art: `${cloud(76, 26, 0.95)}<g transform="translate(0 10)">${WIND}</g>` };
     case "exceptional":
       return { anchor: [60, 50], art: ALERT };
+    // Not weather conditions: the upcoming bar's freezing and heat.
+    case "freezing":
+      return { anchor: [60, 50], art: flakes([[60, 50]], 30) };
+    case "heat":
+      return { anchor: [60, 50], body: 1.75, art: "" };
     default:
       return { anchor: [34, 30], art: `${cloud(42, 38, 0.95, "back")}${cloud(66, 60, 1.2)}` };
   }
@@ -1638,6 +1718,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           ],
         },
         { name: "show_alerts", selector: { boolean: {} } },
+        { name: "show_upcoming", selector: { boolean: {} } },
+        { name: "upcoming_hours", selector: { number: { min: 1, max: 48, mode: "box" } } },
         { name: "show_rain_chance", selector: { boolean: {} } },
         { name: "show_records", selector: { boolean: {} } },
         {
@@ -1691,6 +1773,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           pm25_sensor: "PM2.5 sensor",
           aqi_alert_threshold: "Air quality alert from AQI",
           show_rain_chance: "Show chance of rain",
+          show_upcoming: "Show what's coming",
+          upcoming_hours: "Hours ahead",
           show_records: "Show records",
           show_alerts: "Show weather alerts",
           latitude: "Latitude",
@@ -1714,6 +1798,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           pm25_sensor: "Fine particles in µg/m³; bad air shows as an alert bar",
           aqi_alert_threshold: "Defaults to 101, where air turns unhealthy for sensitive groups",
           show_rain_chance: "From the National Weather Service forecast (US only); on by default",
+          show_upcoming: "A bar for the first rain, snow, storm, fog, or wind in the hourly forecast; on by default",
+          upcoming_hours: "How far ahead the bar looks; defaults to 10",
           latitude: "Leave blank to use Home Assistant's home location",
           time_zone: "An IANA name like Europe/London; leave blank to use Home Assistant's",
           forecast_rows: "As many as your weather entity forecasts",
@@ -2056,15 +2142,16 @@ export class KennedyishWeatherCard extends HTMLElementBase {
   }
 
   /**
-   * When the entity reports no current condition (NWS stations that measure
-   * only temperature and wind), follow its hourly forecast for the hour under
-   * way. A day or 12-hour period says "rainy" if rain falls at any point in it,
+   * Follow the hourly forecast alongside daily rows, for two things: the
+   * upcoming-weather pill, and, when the entity reports no current condition
+   * (NWS stations that measure only temperature and wind), the hour under way.
+   * A day or 12-hour period says "rainy" if rain falls at any point in it,
    * which says nothing about the sky right now.
    */
   _subscribeHourNow(stateObj, entity) {
     const features = Number(stateObj.attributes?.supported_features) || 0;
     const needed =
-      ["unknown", "unavailable"].includes(stateObj.state) &&
+      (this._config.show_upcoming !== false || ["unknown", "unavailable"].includes(stateObj.state)) &&
       (features & FEATURE_FORECAST_HOURLY) !== 0 &&
       this._forecastType(stateObj) !== "hourly";
     const key = needed ? entity : null;
@@ -2289,7 +2376,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const alertBand =
       (alerts.length ? this._renderAlerts(alerts, { now, timeZone, timeFormat, locale }) : "") +
       (airAqi !== null && airAqi >= aqiThreshold ? this._renderAirQuality(airAqi, pm25) : "") +
-      this._renderNextHour(nextHourPrecip(hass.states?.[config.next_hour_sensor]?.state));
+      this._renderNextHour(nextHourPrecip(hass.states?.[config.next_hour_sensor]?.state), () => this._upcoming({ stateObj, now, condition, timeOptions, current, displayUnit }));
     const year = config.hide_year ? "" : this._renderYear(yearDays, { dateText: config.hide_date ? "" : dateText });
     const banner = celebration ? this._renderCelebration(celebration, timeOptions) : "";
 
@@ -2440,15 +2527,43 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       </div>`;
   }
 
-  /** Rain or snow in the next hour, as the next-hour sensor words it. */
-  _renderNextHour(text) {
-    if (!text) return "";
-    const icon = '<svg class="alert-icon drop-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 C12 3 5.5 10.5 5.5 14.5 A6.5 6.5 0 0 0 18.5 14.5 C18.5 10.5 12 3 12 3 Z"></path></svg>';
+  /** The first rain, snow, storm, fog, or wind in the hourly forecast's next hours, or null. */
+  _upcoming({ stateObj, now, condition, timeOptions, current, displayUnit }) {
+    const config = this._config;
+    if (config.show_upcoming === false) return null;
+    const hourly = this._forecastType(stateObj) === "hourly" ? this._forecast : this._hourNow;
+    const hours = isNumber(config.upcoming_hours) ? Number(config.upcoming_hours) : UPCOMING_HOURS_DEFAULT;
+    const event = upcomingEvent(hourly, {
+      now,
+      hours,
+      windUnit: stateObj.attributes?.wind_speed_unit || "km/h",
+      temperatureUnit: stateObj.attributes?.temperature_unit || "°C",
+      current: condition,
+      currentTemperature: current,
+      currentUnit: displayUnit,
+    });
+    if (!event) return null;
+    const time = getTimeParts(event.at, timeOptions);
+    return { kind: event.kind, icon: event.icon, text: `${event.label} ${formatUntil(event.at, now)}`, time: `${time.time}${time.period ? ` ${time.period}` : ""}` };
+  }
+
+  /**
+   * One pill for what's coming: rain or snow in the next hour, as the next-hour
+   * sensor words it, or else the first rain, snow, storm, fog, or wind in the
+   * hourly forecast.
+   */
+  _renderNextHour(text, upcoming) {
+    // The next-hour sensor's words pick their icon: snow, sleet, hail, storms, or rain.
+    const textIcon = (words) =>
+      /thunder|storm/i.test(words) ? "lightning-rainy" : /sleet|mix/i.test(words) ? "snowy-rainy" : /hail/i.test(words) ? "hail" : /snow|flurr/i.test(words) ? "snowy" : /heavy/i.test(words) ? "pouring" : /drizzle/i.test(words) ? "drizzle" : "rainy";
+    const event = text ? { kind: "rain", icon: textIcon(text), text } : upcoming();
+    if (!event) return "";
     return `
-      <div class="alerts next-hour" role="status">
+      <div class="alerts next-hour next-${event.kind}" role="status">
         <div class="alert">
-          ${icon}
-          <span class="alert-event">${escapeHtml(text)}</span>
+          <span class="next-icon">${weatherIllustration(event.icon)}</span>
+          <span class="alert-event">${escapeHtml(event.text)}</span>
+          ${event.time ? `<span class="alert-until">${escapeHtml(event.time)}</span>` : ""}
         </div>
       </div>`;
   }
@@ -2859,6 +2974,12 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .day { color: ${mutedColor}; white-space: nowrap; }
       .row.now .day { color: ${textColor}; }
       .ficon { display: block; width: 30px; height: 25px; }
+      .wx-freezing .flake { stroke-width: 7; }
+      .wx-heat .sun-disc { fill: ${accentColor}; }
+      .wx-heat .sun-halo { fill: ${accentColor}; opacity: .3; }
+      .next-hour .alert { box-sizing: border-box; padding-top: 6px; padding-bottom: 6px; }
+      .next-icon { flex: none; display: block; width: 26px; height: 22px; }
+      .next-icon .wx { display: block; width: 100%; height: 100%; }
       .ficon .wx { display: block; width: 100%; height: 100%; }
       .rain { display: flex; justify-content: flex-end; color: #8ed6c8; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .04em; line-height: 1; white-space: nowrap; }
       .rain-amount { color: #9db8ff; }

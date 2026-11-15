@@ -28,6 +28,8 @@ import {
   formatUntil,
   withSunCheck,
   sunBaseline,
+  snowAsRain,
+  snowWordsAsRain,
 } from "../kennedyish-weather-card.js";
 
 const TZ = "America/Los_Angeles";
@@ -925,6 +927,44 @@ test("shows what's coming as a bar, unless the next-hour sensor has rain to say"
   card.setConfig({ ...card._config, show_upcoming: false });
   card._hourNow = [{ datetime: "2026-11-15T22:00:00Z", condition: "rainy" }];
   assert.doesNotMatch(render("Mostly clear for the hour."), /class="alerts next-hour/);
+});
+
+test("shows snow and sleet as rain when snow_as_rain is set", () => {
+  assert.equal(snowAsRain("snowy"), "rainy");
+  assert.equal(snowAsRain("snowy-rainy"), "rainy");
+  assert.equal(snowAsRain("hail"), "hail");
+  assert.equal(snowAsRain("cloudy"), "cloudy");
+  assert.equal(snowWordsAsRain("Light snow starting in 20 min"), "Light rain starting in 20 min");
+  assert.equal(snowWordsAsRain("Snow for the hour"), "Rain for the hour");
+  assert.equal(snowWordsAsRain("Light rain starting in 20 min"), "Light rain starting in 20 min");
+
+  // Everstoke, 2026-11-15: snow every day from tomorrow, rain overnight.
+  const forecast = [
+    { datetime: "2026-11-15T20:00:00Z", condition: "cloudy", temperature: 49, templow: 39 },
+    { datetime: "2026-11-16T20:00:00Z", condition: "snowy", temperature: 47, templow: 33 },
+    { datetime: "2026-11-17T20:00:00Z", condition: "snowy-rainy", temperature: 36, templow: 30 },
+  ];
+  const snowy = makeCard({ next_hour_sensor: "sensor.minutely" }, { condition: "snowy", forecast, now: "2026-11-15T19:00:00Z" });
+  let html = snowy.shadowRoot.innerHTML;
+  assert.match(html, /sky-snow/, "off by default");
+  assert.match(html, /wx-snowy/);
+
+  const card = makeCard({ snow_as_rain: true, next_hour_sensor: "sensor.minutely" }, { condition: "snowy", forecast, now: "2026-11-15T19:00:00Z" });
+  card._hourNow = [{ datetime: "2026-11-15T22:00:00Z", condition: "snowy" }];
+  card._render();
+  html = card.shadowRoot.innerHTML;
+  assert.match(html, /sky-rain/);
+  assert.match(html, /<span class="label">Rainy<\/span>/);
+  assert.doesNotMatch(html, /wx-snowy|Snowy|Sleet/, "no snow in the rows or the sky");
+  card._hourNow = [{ datetime: "2026-11-15T19:00:00Z", condition: "cloudy" }, { datetime: "2026-11-15T22:00:00Z", condition: "snowy" }];
+  card._hass = { ...card._hass, states: { ...card._hass.states, "weather.forecast_home": { ...card._hass.states["weather.forecast_home"], state: "cloudy" } } };
+  card._render();
+  assert.match(card.shadowRoot.innerHTML, /class="alerts next-hour next-rain"[\s\S]*?<span class="alert-event">Rain in 3 hours<\/span>/);
+  card._hass = { ...card._hass, states: { ...card._hass.states, "sensor.minutely": { state: "Light snow starting in 5 min.", attributes: {} } } };
+  card._render();
+  html = card.shadowRoot.innerHTML;
+  assert.match(html, /<span class="alert-event">Light rain starting in 5 min<\/span>/);
+  assert.match(html, /class="next-icon"><svg class="wx wx-rainy"/);
 });
 
 test("follows the hourly forecast for the bar while showing daily rows", async () => {

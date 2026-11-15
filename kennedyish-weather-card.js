@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.10.0";
+const CARD_VERSION = "4.11.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -400,6 +400,20 @@ export function withRainCheck(condition, check, rainRate = null) {
   if (!WET_CONDITIONS.includes(check) || WET_CONDITIONS.includes(condition)) return condition;
   if ((check === "rainy" || check === "pouring" || check === "drizzle") && rainRate === 0) return "drizzle";
   return check;
+}
+
+/**
+ * Snow and sleet shown as rain, for a place where the forecast can't call
+ * the snow line (a mountain town that gets either). Hail stays hail.
+ */
+export function snowAsRain(condition) {
+  return condition === "snowy" || condition === "snowy-rainy" ? "rainy" : condition;
+}
+
+/** A next-hour summary's snow words as rain: "Light snow starting in 20 min" reads "Light rain starting in 20 min". */
+export function snowWordsAsRain(text) {
+  if (!text) return text;
+  return text.replace(/\b(snow|flurries|sleet|wintry mix)\b/gi, (word) => (word[0] === word[0].toUpperCase() ? "Rain" : "rain"));
 }
 
 /**
@@ -1719,6 +1733,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         },
         { name: "show_alerts", selector: { boolean: {} } },
         { name: "show_upcoming", selector: { boolean: {} } },
+        { name: "snow_as_rain", selector: { boolean: {} } },
         { name: "upcoming_hours", selector: { number: { min: 1, max: 48, mode: "box" } } },
         { name: "show_rain_chance", selector: { boolean: {} } },
         { name: "show_records", selector: { boolean: {} } },
@@ -1774,6 +1789,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           aqi_alert_threshold: "Air quality alert from AQI",
           show_rain_chance: "Show chance of rain",
           show_upcoming: "Show what's coming",
+          snow_as_rain: "Show snow as rain",
           upcoming_hours: "Hours ahead",
           show_records: "Show records",
           show_alerts: "Show weather alerts",
@@ -1799,6 +1815,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           aqi_alert_threshold: "Defaults to 101, where air turns unhealthy for sensitive groups",
           show_rain_chance: "From the National Weather Service forecast (US only); on by default",
           show_upcoming: "A bar for the first rain, snow, storm, fog, or wind in the hourly forecast; on by default",
+          snow_as_rain: "Snow and sleet in the forecast show as rain, for a place where the forecast can't tell which it'll be",
           upcoming_hours: "How far ahead the bar looks; defaults to 10",
           latitude: "Leave blank to use Home Assistant's home location",
           time_zone: "An IANA name like Europe/London; leave blank to use Home Assistant's",
@@ -2281,12 +2298,13 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     // Weather providers can keep yesterday's clear-night state after sunrise.
     // Use the same local day/night calculation for the label and sky artwork.
     // With no current condition, the hour under way says more than the day.
-    const forecasts = this._hourNow?.length ? this._hourNow : this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast;
+    const forecasts = this._rainOnly(this._hourNow?.length ? this._hourNow : this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast);
+    const shown = this._config.snow_as_rain ? snowAsRain(stateObj.state) : stateObj.state;
     const rainRate = rain ? toInchesPerHour(rain) : null;
     // The station's sun sensor first, so wind turns a clouded-over "sunny" into "windy-variant".
     const irradiance = reading(config.irradiance_sensor);
-    const seen = night ? currentCondition(stateObj.state, forecasts, now)
-      : withSunCheck(currentCondition(stateObj.state, forecasts, now), irradiance?.value, sunBaseline(this._sunRows, now.valueOf()));
+    const seen = night ? currentCondition(shown, forecasts, now)
+      : withSunCheck(currentCondition(shown, forecasts, now), irradiance?.value, sunBaseline(this._sunRows, now.valueOf()));
     const refined = refineCondition(seen, {
       rainRate,
       windSpeed: wind ? toMph(wind) : null,
@@ -2294,7 +2312,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       aqi: Number.isFinite(aqiReading) ? aqiReading : pm25Reading ? aqiFromPm25(pm25Reading.value) : null,
     });
     // After the gauge's say: a gauge reading 0 can't rule out drizzle another source sees.
-    const condition = normalizeCondition(withRainCheck(refined, hass.states?.[config.rain_check_entity]?.state, rainRate), night);
+    const condition = normalizeCondition(withRainCheck(refined, this._config.snow_as_rain ? snowAsRain(hass.states?.[config.rain_check_entity]?.state) : hass.states?.[config.rain_check_entity]?.state, rainRate), night);
     const group = getConditionGroup(condition);
     const skyPhase = group === "clear" || group === "partly" ? phase : night ? "night" : "day";
     const conditionLabel = condition === "sunny" && (phase === "dawn" || phase === "dusk")
@@ -2382,7 +2400,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const alertBand =
       (alerts.length ? this._renderAlerts(alerts, { now, timeZone, timeFormat, locale }) : "") +
       (airAqi !== null && airAqi >= aqiThreshold ? this._renderAirQuality(airAqi, pm25) : "") +
-      this._renderNextHour(nextHourPrecip(hass.states?.[config.next_hour_sensor]?.state), () => this._upcoming({ stateObj, now, condition, timeOptions, current, displayUnit }));
+      this._renderNextHour((config.snow_as_rain ? snowWordsAsRain : (text) => text)(nextHourPrecip(hass.states?.[config.next_hour_sensor]?.state)), () => this._upcoming({ stateObj, now, condition, timeOptions, current, displayUnit }));
     const year = config.hide_year ? "" : this._renderYear(yearDays, { dateText: config.hide_date ? "" : dateText });
     const banner = celebration ? this._renderCelebration(celebration, timeOptions) : "";
 
@@ -2533,11 +2551,17 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       </div>`;
   }
 
+  /** A forecast with snow and sleet as rain when `snow_as_rain` is set; otherwise as it came. */
+  _rainOnly(forecasts) {
+    if (!this._config.snow_as_rain || !Array.isArray(forecasts)) return forecasts;
+    return forecasts.map((forecast) => (snowAsRain(forecast.condition) === forecast.condition ? forecast : { ...forecast, condition: snowAsRain(forecast.condition) }));
+  }
+
   /** The first rain, snow, storm, fog, or wind in the hourly forecast's next hours, or null. */
   _upcoming({ stateObj, now, condition, timeOptions, current, displayUnit }) {
     const config = this._config;
     if (config.show_upcoming === false) return null;
-    const hourly = this._forecastType(stateObj) === "hourly" ? this._forecast : this._hourNow;
+    const hourly = this._rainOnly(this._forecastType(stateObj) === "hourly" ? this._forecast : this._hourNow);
     const hours = isNumber(config.upcoming_hours) ? Number(config.upcoming_hours) : UPCOMING_HOURS_DEFAULT;
     const event = upcomingEvent(hourly, {
       now,
@@ -2647,7 +2671,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const hourly = Boolean(config.hourly_forecast);
     if (this._forecastError) return `<div class="footer-note">${escapeHtml(this._forecastError)}</div>`;
 
-    const source = this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast;
+    const source = this._rainOnly(this._forecastType(stateObj) === null ? stateObj.attributes?.forecast : this._forecast);
     if (!source) return '<div class="footer-note">Loading forecast…</div>';
 
     const precipitationUnit = stateObj.attributes?.precipitation_unit || "mm";

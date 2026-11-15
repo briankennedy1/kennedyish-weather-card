@@ -187,6 +187,7 @@ The station takes over the current temperature. The weather service still decide
 | `show_alerts` | `true` | National Weather Service alerts (US only) |
 | `show_upcoming` | `true` | A bar for the first weather worth knowing about in the hourly forecast: thunderstorms, snow, sleet, hail, rain (or a 50% chance of it), fog, wind (gusts of 30 mph or 20 mph sustained), freezing (32°F), or heat (95°F), such as "Rain in 5 hours" with its time and the forecast's own icon. Weather already under way is left out. A `next_hour_sensor` with rain to report takes the bar's place |
 | `upcoming_hours` | `10` | How many hours ahead `show_upcoming` looks |
+| `snow_as_rain` | `false` | Shows snow and sleet in the forecast as rain: the sky, the forecast rows, and the bar. For a place where the forecast can't call the snow line. Hail stays hail, and the snow records row is unchanged |
 | `show_records` | `false` | A row of rain today, this storm, and this year, then this year's high and low, with all-time highs and lows when the history allows |
 | `show_rain_chance` | `true` | NWS chance of rain in the forecast rows (US only) |
 | `background`, `text_color`, `muted_color`, `accent_color`, `sun_color` | Deep teal and cream | Footer and sun colors, as any CSS color |

@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.9.0";
+const CARD_VERSION = "4.10.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -2116,7 +2116,9 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const key = `${entity}|${type}`;
     if (key === this._subscriptionKey) return;
 
-    this._unsubscribe();
+    // Only the daily (or main) forecast changes here; the hourly one above stays,
+    // so the upcoming bar arrives with the forecast rather than a state update later.
+    this._unsubscribeForecast();
     this._subscriptionKey = key;
     this._forecast = null;
     this._forecastError = type === "unsupported" ? `${entity} has no hourly forecast.` : null;
@@ -2183,11 +2185,15 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     subscription?.then((unsubscribe) => unsubscribe?.()).catch(() => {});
   }
 
-  _unsubscribe() {
+  _unsubscribeForecast() {
     const subscription = this._subscription;
     this._subscription = null;
     this._subscriptionKey = null;
     subscription?.then((unsubscribe) => unsubscribe?.()).catch(() => {});
+  }
+
+  _unsubscribe() {
+    this._unsubscribeForecast();
     this._unsubscribeHourNow();
   }
 
@@ -2977,7 +2983,11 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .wx-freezing .flake { stroke-width: 7; }
       .wx-heat .sun-disc { fill: ${accentColor}; }
       .wx-heat .sun-halo { fill: ${accentColor}; opacity: .3; }
-      .next-hour .alert { box-sizing: border-box; padding-top: 6px; padding-bottom: 6px; }
+      /* What's coming stands out from the footer: turquoise, with the footer's dark teal for text and icon. */
+      .alerts.next-hour { width: fit-content; max-width: 100%; margin-left: auto; margin-right: auto; border-radius: 999px; color: #123f3c; background: #8ed6c8; }
+      .next-hour .alert { box-sizing: border-box; width: auto; padding: 5px 16px 5px 11px; }
+      .next-hour .alert-until { margin-left: 6px; opacity: .75; }
+      .next-hour .wx { --cloud: #123f3c; --cloud-shade: #3f7f78; --drop: #123f3c; --flake: #123f3c; }
       .next-icon { flex: none; display: block; width: 26px; height: 22px; }
       .next-icon .wx { display: block; width: 100%; height: 100%; }
       .ficon .wx { display: block; width: 100%; height: 100%; }

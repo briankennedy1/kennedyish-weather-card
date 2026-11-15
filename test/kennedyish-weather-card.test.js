@@ -864,7 +864,8 @@ test("shows the next hour's rain or snow as a bar, and nothing on a dry hour", (
   assert.doesNotMatch(setSummary("Mostly clear for the hour."), /class="alerts next-hour/);
   const html = setSummary("Light rain starting in 20 min.");
   assert.match(html, /class="alerts next-hour[^"]*"[\s\S]*?<span class="alert-event">Light rain starting in 20 min<\/span>/);
-  assert.ok(html.indexOf('class="alerts next-hour') < html.indexOf('class="forecast'), "the bar sits above the forecast");
+  assert.ok(html.indexOf('class="footer"') < html.indexOf('class="alerts next-hour'), "below the sky");
+  assert.ok(html.indexOf('class="alerts next-hour') < html.indexOf('class="forecast'), "above the forecast");
   assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="alerts next-hour/, "no sensor, no bar");
 });
 
@@ -933,4 +934,27 @@ test("follows the hourly forecast for the bar while showing daily rows", async (
   card.hass = { ...card._hass, connection: { subscribeMessage: async (callback, message) => { subscriptions.push(message.forecast_type); return () => {}; } } };
   await Promise.resolve();
   assert.deepEqual(subscriptions.sort(), ["daily", "hourly"]);
+});
+
+test("starting the daily forecast keeps the hourly one, so the bar arrives with the rows", async () => {
+  const card = makeCard({}, { features: 3, condition: "cloudy", now: "2026-11-15T16:20:00Z" });
+  card._forecast = null;
+  card._subscriptionKey = null;
+  const unsubscribed = [];
+  Object.defineProperty(card, "isConnected", { value: true });
+  card.hass = {
+    ...card._hass,
+    connection: {
+      subscribeMessage: async (callback, message) => {
+        callback({ forecast: message.forecast_type === "hourly"
+          ? [{ datetime: "2026-11-15T22:00:00Z", condition: "rainy" }]
+          : [{ datetime: "2026-11-15T20:00:00Z", condition: "rainy", temperature: 61, templow: 50 }] });
+        return () => unsubscribed.push(message.forecast_type);
+      },
+    },
+  };
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(unsubscribed, []);
+  assert.ok(card._hourNow?.length, "the hourly forecast is still there");
+  assert.match(card.shadowRoot.innerHTML, /Rain in 6 hours/);
 });

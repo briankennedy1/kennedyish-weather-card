@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.7.0";
+const CARD_VERSION = "4.8.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -400,6 +400,17 @@ export function withRainCheck(condition, check, rainRate = null) {
   if (!WET_CONDITIONS.includes(check) || WET_CONDITIONS.includes(condition)) return condition;
   if ((check === "rainy" || check === "pouring" || check === "drizzle") && rainRate === 0) return "drizzle";
   return check;
+}
+
+/**
+ * A next-hour summary (like Pirate Weather's Minutely Summary, "Light rain
+ * starting in 20 min.") worth a band: only one that mentions rain or snow.
+ * Returns the text without its closing period, or null.
+ */
+export function nextHourPrecip(text) {
+  const summary = String(text ?? "").trim();
+  if (!/\b(rain|drizzle|showers?|snow|flurries|sleet|hail|precipitation|storms?|thunderstorms?)\b/i.test(summary)) return null;
+  return summary.replace(/\.$/, "");
 }
 
 /**
@@ -1525,7 +1536,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     this.shadowRoot?.addEventListener("click", (event) => {
       if (event.target.closest?.(".alert-details") || event.target.closest?.(".year-bar")) return;
       const band = event.target.closest?.(".alert");
-      if (band) {
+      if (band && band.dataset.toggle) {
         if (band.dataset.toggle === "aqi") this._aqiOpen = !this._aqiOpen;
         else this._alertsOpen = !this._alertsOpen;
         this._render();
@@ -1561,6 +1572,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         { name: "entity", required: true, selector: { entity: { domain: "weather" } } },
         { name: "fallback_entity", selector: { entity: { domain: "weather" } } },
         { name: "rain_check_entity", selector: { entity: { domain: "weather" } } },
+        { name: "next_hour_sensor", selector: { entity: { domain: "sensor" } } },
         { name: "irradiance_sensor", selector: { entity: { domain: "sensor", device_class: "irradiance" } } },
         { name: "title", selector: { text: {} } },
         {
@@ -1650,6 +1662,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           entity: "Weather entity",
           fallback_entity: "Fallback weather entity",
           rain_check_entity: "Second opinion on rain",
+          next_hour_sensor: "Next hour",
           irradiance_sensor: "Solar radiation sensor",
           title: "Title",
           forecast_rows: "Forecast rows",
@@ -1688,6 +1701,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         ({
           fallback_entity: "Used while the weather entity is unavailable, e.g. when its provider is down",
           rain_check_entity: "Shows rain or snow when this entity says so and the weather entity does not",
+          next_hour_sensor: "A summary of the next hour, like Pirate Weather's Minutely Summary; rain or snow in it shows as a bar",
           irradiance_sensor: "A station's solar radiation (W/m²); turns a sunny forecast cloudy when the sun isn't getting through",
           temperature_sensor: "Overrides the weather entity's current temperature",
           humidity_sensor: "Overrides the weather entity's humidity",
@@ -1951,6 +1965,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       states[config.entity],
       states[config.fallback_entity],
       states[config.rain_check_entity],
+      states[config.next_hour_sensor],
       states[config.irradiance_sensor],
       states[config.temperature_sensor],
       states[config.humidity_sensor],
@@ -2273,7 +2288,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const aqiThreshold = isNumber(config.aqi_alert_threshold) ? Number(config.aqi_alert_threshold) : AQI_ALERT_DEFAULT;
     const alertBand =
       (alerts.length ? this._renderAlerts(alerts, { now, timeZone, timeFormat, locale }) : "") +
-      (airAqi !== null && airAqi >= aqiThreshold ? this._renderAirQuality(airAqi, pm25) : "");
+      (airAqi !== null && airAqi >= aqiThreshold ? this._renderAirQuality(airAqi, pm25) : "") +
+      this._renderNextHour(nextHourPrecip(hass.states?.[config.next_hour_sensor]?.state));
     const year = config.hide_year ? "" : this._renderYear(yearDays, { dateText: config.hide_date ? "" : dateText });
     const banner = celebration ? this._renderCelebration(celebration, timeOptions) : "";
 
@@ -2421,6 +2437,19 @@ export class KennedyishWeatherCard extends HTMLElementBase {
               <p>${escapeHtml(source)}</p>
             </section></div>`
           : ""}
+      </div>`;
+  }
+
+  /** Rain or snow in the next hour, as the next-hour sensor words it. */
+  _renderNextHour(text) {
+    if (!text) return "";
+    const icon = '<svg class="alert-icon drop-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 C12 3 5.5 10.5 5.5 14.5 A6.5 6.5 0 0 0 18.5 14.5 C18.5 10.5 12 3 12 3 Z"></path></svg>';
+    return `
+      <div class="alerts next-hour" role="status">
+        <div class="alert">
+          ${icon}
+          <span class="alert-event">${escapeHtml(text)}</span>
+        </div>
       </div>`;
   }
 
@@ -2887,6 +2916,8 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .alert-icon .alert-icon-mark { fill: none; stroke: var(--alert-mark); stroke-width: 2.4; stroke-linecap: round; }
       .alert-event { min-width: 0; overflow: hidden; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
       .alert-until { flex: none; margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: .06em; opacity: .8; white-space: nowrap; }
+      .next-hour .alert { cursor: default; }
+      .next-hour .alert-event { white-space: normal; }
       .alert-more { flex: none; padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700; background: rgba(0, 0, 0, .14); }
       .alert-details { max-height: 260px; margin: 0 12px; overflow: auto; border-top: 1px solid var(--alert-rule); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; cursor: auto; }
       .alert-detail { padding: 10px 0 4px; }

@@ -151,6 +151,7 @@ The station takes over the current temperature. The weather service still decide
 | `entity` | — | **Required.** A weather entity |
 | `fallback_entity` | — | A second weather entity, shown while `entity` is unavailable (for example, when its weather service is down). The card switches back once `entity` returns |
 | `rain_check_entity` | — | A second weather entity as a second opinion on rain and snow. When it says rain or snow and `entity` does not, the card shows its condition; light rain that the `rain_rate_sensor` reads as 0 shows as drizzle |
+| `next_hour_sensor` | — | A text sensor summing up the next hour, like Pirate Weather's Minutely Summary (turn on the integration's sensors and pick Minutely Summary). When it mentions rain or snow ("Light rain starting in 20 min."), its words show as a bar above the forecast |
 | `irradiance_sensor` | — | A weather station's solar radiation sensor (W/m²). In daylight, when the weather entity says sunny or partly cloudy but the sensor reads under 35% of its best reading at this time of day over the past 10 days, the card shows cloudy (under 65%: sunny becomes partly cloudy). Comparing the station with itself accounts for its own shade and the season |
 | `title` | — | A small label above the temperature |
 | `latitude`, `longitude` | Home Assistant's home | Where to calculate the sun and seasons, and fetch US alerts |

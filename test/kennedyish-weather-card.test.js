@@ -23,6 +23,7 @@ import {
   temperatureColor,
   weatherIllustration,
   withRainCheck,
+  nextHourPrecip,
   withSunCheck,
   sunBaseline,
 } from "../kennedyish-weather-card.js";
@@ -841,4 +842,26 @@ test("both checks together: this morning at Jennings reads as drizzle, not sunny
   assert.match(card.shadowRoot.innerHTML, /<span class="label">Cloudy<\/span>/, "the sun sensor alone: cloudy");
   card.hass = { ...card._hass, states: { ...card._hass.states, "weather.met": { state: "rainy", attributes: {} } } };
   assert.match(card.shadowRoot.innerHTML, /<span class="label">Drizzle<\/span>/, "with met.no saying rain: drizzle");
+});
+
+test("shows the next hour's rain or snow as a bar, and nothing on a dry hour", () => {
+  assert.equal(nextHourPrecip("Light rain starting in 20 min."), "Light rain starting in 20 min");
+  assert.equal(nextHourPrecip("Rain stopping in 5 min, starting again 30 min later."), "Rain stopping in 5 min, starting again 30 min later");
+  assert.equal(nextHourPrecip("Snow for the hour."), "Snow for the hour");
+  assert.equal(nextHourPrecip("Mostly clear for the hour."), null);
+  assert.equal(nextHourPrecip("Overcast for the hour."), null);
+  assert.equal(nextHourPrecip("unavailable"), null);
+  assert.equal(nextHourPrecip(undefined), null);
+
+  const card = makeCard({ next_hour_sensor: "sensor.minutely" });
+  const setSummary = (state) => {
+    card._hass = { ...card._hass, states: { ...card._hass.states, "sensor.minutely": { state, attributes: {} } } };
+    card._render();
+    return card.shadowRoot.innerHTML;
+  };
+  assert.doesNotMatch(setSummary("Mostly clear for the hour."), /class="alerts next-hour"/);
+  const html = setSummary("Light rain starting in 20 min.");
+  assert.match(html, /class="alerts next-hour"[\s\S]*?<span class="alert-event">Light rain starting in 20 min<\/span>/);
+  assert.ok(html.indexOf('class="alerts next-hour"') < html.indexOf('class="forecast'), "the bar sits above the forecast");
+  assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="alerts next-hour"/, "no sensor, no bar");
 });

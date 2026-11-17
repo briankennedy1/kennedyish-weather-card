@@ -1,4 +1,4 @@
-const CARD_VERSION = "4.11.0";
+const CARD_VERSION = "4.12.0";
 const FEATURE_FORECAST_DAILY = 1;
 const FEATURE_FORECAST_HOURLY = 2;
 const FEATURE_FORECAST_TWICE_DAILY = 4;
@@ -418,52 +418,44 @@ export function snowWordsAsRain(text) {
 
 /**
  * A next-hour summary (like Pirate Weather's Minutely Summary, "Light rain
- * starting in 20 min.") worth a band: only one that mentions rain or snow.
- * Returns the text without its closing period, or null.
+ * starting in 20 min.") worth a band: rain or snow that is on its way. Weather
+ * already falling ("for the hour", "ending in 20 min") is on the sky already,
+ * and a "Possible" one is too unsure to call out. Returns the text without its
+ * closing period, or null.
  */
 export function nextHourPrecip(text) {
   const summary = String(text ?? "").trim();
   if (!/\b(rain|drizzle|showers?|snow|flurries|sleet|hail|precipitation|storms?|thunderstorms?)\b/i.test(summary)) return null;
+  if (!/^\S.*?\bstarting in\b/i.test(summary) || /^possible\b/i.test(summary)) return null;
   return summary.replace(/\.$/, "");
 }
 
 // What the upcoming-weather pill looks for in the hourly forecast, most serious first within an hour.
 const UPCOMING_KINDS = [
   ["storm", "Thunderstorms", ["lightning", "lightning-rainy"]],
-  ["exceptional", "Exceptional weather", ["exceptional"]],
   ["snow", "Snow", ["snowy"]],
   ["sleet", "Sleet", ["snowy-rainy"]],
   ["hail", "Hail", ["hail"]],
   ["rain", "Rain", ["rainy", "pouring", "drizzle"]],
-  ["fog", "Fog", ["fog"]],
-  ["wind", "Wind", ["windy", "windy-variant"]],
-  ["freeze", "Freezing", []],
-  ["heat", "Heat", []],
 ];
 // An hour the forecast calls cloudy but gives this chance of rain or more still counts as rain.
 const UPCOMING_PRECIP_CHANCE = 50;
-const FREEZING_F = 32;
-const HEAT_F = 95;
 
-/** The kind of weather a condition counts as for the upcoming pill, or null for a quiet sky. */
+/** The kind of rain or snow a condition counts as for the upcoming pill, or null for a dry sky. */
 export function upcomingKind(condition) {
   return UPCOMING_KINDS.find(([, , conditions]) => conditions.includes(condition))?.[0] ?? null;
 }
 
 /**
- * The first weather worth a heads-up that the hourly forecast has starting
- * within the next `hours` hours, leaving out the kind already under way:
- * storms, exceptional weather, snow, sleet, hail, rain (or a 50% chance of
- * it), fog, wind (gusts of 30 mph, or 20 mph sustained), freezing (32°F), and
- * heat (95°F). Within one hour the most serious wins.
+ * The first rain or snow that the hourly forecast has starting within the
+ * next `hours` hours, leaving out the kind already under way: storms, snow,
+ * sleet, hail, or rain (or a 50% chance of it). Within one hour the most
+ * serious wins.
  * Returns { kind, label, at } or null.
  */
-export function upcomingEvent(forecasts, { now = new Date(), hours = 10, windUnit = "km/h", temperatureUnit = "°F", current = null, currentTemperature = null, currentUnit = temperatureUnit } = {}) {
+export function upcomingEvent(forecasts, { now = new Date(), hours = 10, current = null } = {}) {
   const ongoing = upcomingKind(current);
-  const fahrenheit = (value, unit = temperatureUnit) => (isNumber(value) ? convertTemperature(Number(value), unit, "°F") : null);
-  const nowF = fahrenheit(currentTemperature, currentUnit);
   const end = now.valueOf() + hours * 3_600_000;
-  const mph = (value) => (isNumber(value) ? toMph({ value: Number(value), unit: windUnit }) : 0);
   const entries = (forecasts || [])
     .map((forecast) => ({ forecast, at: new Date(forecast.datetime) }))
     .filter(({ at }) => !Number.isNaN(at.valueOf()) && at > now && at.valueOf() <= end)
@@ -474,13 +466,6 @@ export function upcomingEvent(forecasts, { now = new Date(), hours = 10, windUni
     if (ongoing !== "rain" && !upcomingKind(forecast.condition) && Number(forecast.precipitation_probability) >= UPCOMING_PRECIP_CHANCE) {
       return { kind: "rain", label: "Rain", at, icon: "rainy" };
     }
-    if (ongoing !== "wind") {
-      if (mph(forecast.wind_gust_speed) >= WINDY_GUST_MPH) return { kind: "wind", label: "Wind gusts", at, icon: "windy" };
-      if (mph(forecast.wind_speed) >= WINDY_MPH) return { kind: "wind", label: "Wind", at, icon: "windy" };
-    }
-    const temperature = fahrenheit(forecast.temperature);
-    if (temperature !== null && temperature <= FREEZING_F && !(nowF !== null && nowF <= FREEZING_F)) return { kind: "freeze", label: "Freezing", at, icon: "freezing" };
-    if (temperature !== null && temperature >= HEAT_F && !(nowF !== null && nowF >= HEAT_F)) return { kind: "heat", label: "Heat", at, icon: "heat" };
     return null;
   };
   const rank = (event) => UPCOMING_KINDS.findIndex(([kind]) => kind === event.kind);
@@ -896,11 +881,6 @@ function conditionArt(kind, night) {
       return { anchor: [60, 12], art: `${cloud(76, 26, 0.95)}<g transform="translate(0 10)">${WIND}</g>` };
     case "exceptional":
       return { anchor: [60, 50], art: ALERT };
-    // Not weather conditions: the upcoming bar's freezing and heat.
-    case "freezing":
-      return { anchor: [60, 50], art: flakes([[60, 50]], 30) };
-    case "heat":
-      return { anchor: [60, 50], body: 1.75, art: "" };
     default:
       return { anchor: [34, 30], art: `${cloud(42, 38, 0.95, "back")}${cloud(66, 60, 1.2)}` };
   }
@@ -1801,7 +1781,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
         ({
           fallback_entity: "Used while the weather entity is unavailable, e.g. when its provider is down",
           rain_check_entity: "Shows rain or snow when this entity says so and the weather entity does not",
-          next_hour_sensor: "A summary of the next hour, like Pirate Weather's Minutely Summary; rain or snow in it shows as a bar",
+          next_hour_sensor: "A summary of the next hour, like Pirate Weather's Minutely Summary; rain or snow starting shows as a bar",
           irradiance_sensor: "A station's solar radiation (W/m²); turns a sunny forecast cloudy when the sun isn't getting through",
           temperature_sensor: "Overrides the weather entity's current temperature",
           humidity_sensor: "Overrides the weather entity's humidity",
@@ -1814,7 +1794,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
           pm25_sensor: "Fine particles in µg/m³; bad air shows as an alert bar",
           aqi_alert_threshold: "Defaults to 101, where air turns unhealthy for sensitive groups",
           show_rain_chance: "From the National Weather Service forecast (US only); on by default",
-          show_upcoming: "A bar for the first rain, snow, storm, fog, or wind in the hourly forecast; on by default",
+          show_upcoming: "A bar for the first rain or snow in the hourly forecast; on by default",
           snow_as_rain: "Snow and sleet in the forecast show as rain, for a place where the forecast can't tell which it'll be",
           upcoming_hours: "How far ahead the bar looks; defaults to 10",
           latitude: "Leave blank to use Home Assistant's home location",
@@ -2557,7 +2537,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     return forecasts.map((forecast) => (snowAsRain(forecast.condition) === forecast.condition ? forecast : { ...forecast, condition: snowAsRain(forecast.condition) }));
   }
 
-  /** The first rain, snow, storm, fog, or wind in the hourly forecast's next hours, or null. */
+  /** The first rain or snow in the hourly forecast's next hours, or null. */
   _upcoming({ stateObj, now, condition, timeOptions, current, displayUnit }) {
     const config = this._config;
     if (config.show_upcoming === false) return null;
@@ -2566,11 +2546,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
     const event = upcomingEvent(hourly, {
       now,
       hours,
-      windUnit: stateObj.attributes?.wind_speed_unit || "km/h",
-      temperatureUnit: stateObj.attributes?.temperature_unit || "°C",
       current: condition,
-      currentTemperature: current,
-      currentUnit: displayUnit,
     });
     if (!event) return null;
     const time = getTimeParts(event.at, timeOptions);
@@ -2579,7 +2555,7 @@ export class KennedyishWeatherCard extends HTMLElementBase {
 
   /**
    * One pill for what's coming: rain or snow in the next hour, as the next-hour
-   * sensor words it, or else the first rain, snow, storm, fog, or wind in the
+   * sensor words it, or else the first rain or snow in the
    * hourly forecast.
    */
   _renderNextHour(text, upcoming) {
@@ -3004,9 +2980,6 @@ export class KennedyishWeatherCard extends HTMLElementBase {
       .day { color: ${mutedColor}; white-space: nowrap; }
       .row.now .day { color: ${textColor}; }
       .ficon { display: block; width: 30px; height: 25px; }
-      .wx-freezing .flake { stroke-width: 7; }
-      .wx-heat .sun-disc { fill: ${accentColor}; }
-      .wx-heat .sun-halo { fill: ${accentColor}; opacity: .3; }
       /* What's coming stands out from the footer: turquoise, with the footer's dark teal for text and icon. */
       .alerts.next-hour { width: fit-content; max-width: 100%; margin-left: auto; margin-right: auto; border-radius: 999px; color: #123f3c; background: #8ed6c8; }
       .next-hour .alert { box-sizing: border-box; width: auto; padding: 5px 16px 5px 11px; }

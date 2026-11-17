@@ -151,7 +151,7 @@ The station takes over the current temperature. The weather service still decide
 | `entity` | — | **Required.** A weather entity |
 | `fallback_entity` | — | A second weather entity, shown while `entity` is unavailable (for example, when its weather service is down). The card switches back once `entity` returns |
 | `rain_check_entity` | — | A second weather entity as a second opinion on rain and snow. When it says rain or snow and `entity` does not, the card shows its condition; light rain that the `rain_rate_sensor` reads as 0 shows as drizzle |
-| `next_hour_sensor` | — | A text sensor summing up the next hour, like Pirate Weather's Minutely Summary (turn on the integration's sensors and pick Minutely Summary). When it mentions rain or snow ("Light rain starting in 20 min."), its words show as a bar above the forecast |
+| `next_hour_sensor` | — | A text sensor summing up the next hour, like Pirate Weather's Minutely Summary (turn on the integration's sensors and pick Minutely Summary). When it has rain or snow starting ("Light rain starting in 20 min."), its words show as a bar above the forecast. Rain already falling ("ending in 20 min", "for the hour") and "Possible" ones are left out |
 | `irradiance_sensor` | — | A weather station's solar radiation sensor (W/m²). In daylight, when the weather entity says sunny or partly cloudy but the sensor reads under 35% of its best reading at this time of day over the past 10 days, the card shows cloudy (under 65%: sunny becomes partly cloudy). Comparing the station with itself accounts for its own shade and the season |
 | `title` | — | A small label above the temperature |
 | `latitude`, `longitude` | Home Assistant's home | Where to calculate the sun and seasons, and fetch US alerts |
@@ -185,7 +185,7 @@ The station takes over the current temperature. The weather service still decide
 | `aqi_sensor` | — | An air quality index sensor, shown as a chip |
 | `aqi_alert_threshold` | `101` | The AQI at which the air quality band appears |
 | `show_alerts` | `true` | National Weather Service alerts (US only) |
-| `show_upcoming` | `true` | A bar for the first weather worth knowing about in the hourly forecast: thunderstorms, snow, sleet, hail, rain (or a 50% chance of it), fog, wind (gusts of 30 mph or 20 mph sustained), freezing (32°F), or heat (95°F), such as "Rain in 5 hours" with its time and the forecast's own icon. Weather already under way is left out. A `next_hour_sensor` with rain to report takes the bar's place |
+| `show_upcoming` | `true` | A bar for the first rain or snow in the hourly forecast (thunderstorms, snow, sleet, hail, or rain, or a 50% chance of it), such as "Rain in 5 hours" with its time and the forecast's own icon. Weather already under way is left out. A `next_hour_sensor` with rain to report takes the bar's place |
 | `upcoming_hours` | `10` | How many hours ahead `show_upcoming` looks |
 | `snow_as_rain` | `false` | Shows snow and sleet in the forecast as rain: the sky, the forecast rows, and the bar. For a place where the forecast can't call the snow line. Hail stays hail, and the snow records row is unchanged |
 | `show_records` | `false` | A row of rain today, this storm, and this year, then this year's high and low, with all-time highs and lows when the history allows |

@@ -850,8 +850,12 @@ test("both checks together: this morning at Jennings reads as drizzle, not sunny
 
 test("shows the next hour's rain or snow as a bar, and nothing on a dry hour", () => {
   assert.equal(nextHourPrecip("Light rain starting in 20 min."), "Light rain starting in 20 min");
-  assert.equal(nextHourPrecip("Rain stopping in 5 min, starting again 30 min later."), "Rain stopping in 5 min, starting again 30 min later");
-  assert.equal(nextHourPrecip("Snow for the hour."), "Snow for the hour");
+  assert.equal(nextHourPrecip("Drizzle starting in 4 min, ending 48 min later."), "Drizzle starting in 4 min, ending 48 min later");
+  assert.equal(nextHourPrecip("Snow for the hour."), null, "already falling: the sky shows it");
+  assert.equal(nextHourPrecip("Light rain ending in 30 min."), null);
+  assert.equal(nextHourPrecip("Drizzle ending in 6 min, returning 19 min later."), null);
+  assert.equal(nextHourPrecip("Possible drizzle ending in 3 min."), null);
+  assert.equal(nextHourPrecip("Possible drizzle starting in 59 min."), null, "too unsure");
   assert.equal(nextHourPrecip("Mostly clear for the hour."), null);
   assert.equal(nextHourPrecip("Overcast for the hour."), null);
   assert.equal(nextHourPrecip("unavailable"), null);
@@ -871,12 +875,12 @@ test("shows the next hour's rain or snow as a bar, and nothing on a dry hour", (
   assert.doesNotMatch(makeCard().shadowRoot.innerHTML, /class="alerts next-hour/, "no sensor, no bar");
 });
 
-test("finds the first rain, snow, storm, fog, or wind in the next hours", () => {
+test("finds the first rain or snow in the next hours", () => {
   const now = new Date("2026-11-15T16:20:00Z"); // 8:20 AM in Vallejo
   const hour = (h, extra) => ({ datetime: `2026-11-15T${String(h).padStart(2, "0")}:00:00Z`, condition: "cloudy", ...extra });
   // Pirate Weather, 2026-11-15: cloudy all morning, rain from 2 PM.
   const pirate = [hour(16), hour(17), hour(18), hour(19), hour(20), hour(21), hour(22, { condition: "rainy" }), hour(23, { condition: "rainy" })];
-  let event = upcomingEvent(pirate, { now, windUnit: "mph", current: "cloudy" });
+  let event = upcomingEvent(pirate, { now, current: "cloudy" });
   assert.equal(event.label, "Rain");
   assert.equal(event.at.toISOString(), "2026-11-15T22:00:00.000Z");
   assert.equal(formatUntil(event.at, now), "in 6 hours");
@@ -885,20 +889,14 @@ test("finds the first rain, snow, storm, fog, or wind in the next hours", () => 
   assert.equal(upcomingEvent(pirate, { now, hours: 4, current: "cloudy" }), null, "beyond the window");
   assert.equal(upcomingEvent([hour(16), hour(17)], { now, current: "cloudy" }), null, "a quiet day shows nothing");
 
-  assert.equal(upcomingEvent([hour(17, { condition: "fog" }), hour(18, { condition: "rainy" })], { now }).label, "Fog", "the first event wins");
+  assert.equal(upcomingEvent([hour(17, { condition: "snowy" }), hour(18, { condition: "rainy" })], { now }).label, "Snow", "the first event wins");
   assert.equal(upcomingEvent([hour(17, { condition: "rainy" }), hour(17, { condition: "lightning-rainy" })], { now }).label, "Thunderstorms");
-  assert.equal(upcomingEvent([hour(18, { wind_gust_speed: 32 })], { now, windUnit: "mph" }).label, "Wind gusts");
-  assert.equal(upcomingEvent([hour(18, { wind_speed: 35 })], { now, windUnit: "km/h" }).label, "Wind", "35 km/h is 22 mph");
-  assert.equal(upcomingEvent([hour(18, { wind_gust_speed: 40 })], { now, windUnit: "km/h" }), null, "40 km/h gusts are 25 mph");
   assert.equal(upcomingEvent([hour(18, { condition: "snowy" })], { now }).label, "Snow");
 
-  assert.equal(upcomingEvent([hour(18, { condition: "exceptional" })], { now }).label, "Exceptional weather");
+  assert.equal(upcomingEvent([hour(17, { condition: "fog" }), hour(18, { condition: "windy", wind_gust_speed: 40 }), hour(19, { condition: "exceptional" })], { now }), null, "only rain or snow");
   assert.equal(upcomingEvent([hour(18, { precipitation_probability: 60 })], { now }).label, "Rain", "a likely shower in a cloudy hour");
   assert.equal(upcomingEvent([hour(18, { precipitation_probability: 30 })], { now }), null);
-  const cold = upcomingEvent([hour(18, { temperature: 34 }), hour(19, { temperature: 31 })], { now, temperatureUnit: "°F", currentTemperature: 2, currentUnit: "°C" });
-  assert.deepEqual([cold.label, cold.icon, cold.at.getUTCHours()], ["Freezing", "freezing", 19]);
-  assert.equal(upcomingEvent([hour(19, { temperature: -2 })], { now, temperatureUnit: "°C", currentTemperature: 30, currentUnit: "°F" }), null, "already freezing");
-  assert.equal(upcomingEvent([hour(19, { temperature: 36 })], { now, temperatureUnit: "°C", currentTemperature: 80, currentUnit: "°F" }).label, "Heat", "36 °C is 97 °F");
+  assert.equal(upcomingEvent([hour(18, { temperature: 34 }), hour(19, { temperature: 28 }), hour(20, { temperature: 99 })], { now }), null, "temperatures alone are no news");
   assert.equal(upcomingEvent([hour(18, { condition: "pouring" })], { now }).icon, "pouring", "the icon follows the forecast's own condition");
 
   assert.equal(formatUntil(new Date("2026-11-15T17:00:00Z"), now), "in 40 min");
